@@ -236,8 +236,8 @@ FocusScope {
                             anchors.verticalCenter: taskTextEdit.verticalCenter
                             text: I18n.tr("Add a task... (Press Enter)")
                             font: taskTextEdit.font
-                            color: Theme.onSurface_38
-                            visible: taskTextEdit.text.length === 0 && !taskTextEdit.inputMethodComposing
+                            color: Theme.surfaceVariantText
+                            visible: taskTextEdit.text.length === 0 && !taskTextEdit.activeFocus && !taskTextEdit.inputMethodComposing
                         }
 
                         DankScrollbar {
@@ -341,10 +341,12 @@ FocusScope {
                             root.tasksModel.editTask(modelData.id, newText);
                         }
                         isEditing = false;
+                        isExpanded = false;
                     }
 
                     function cancelEdit() {
                         isEditing = false;
+                        isExpanded = false;
                     }
 
                     RowLayout {
