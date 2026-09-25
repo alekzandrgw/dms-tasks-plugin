@@ -79,7 +79,7 @@ PluginComponent {
         const focused = getFocusedScreenName();
         if (focused) {
             for (let j = 0; j < instances.length; j++) {
-                if (instances[j]?.modelData?.name === focused) {
+                if (instances[j] && instances[j].modelData && instances[j].modelData.name === focused) {
                     return instances[j];
                 }
             }
