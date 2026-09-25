@@ -14,13 +14,13 @@ FocusScope {
     anchors.fill: parent
 
     function submitNewTask() {
-        const textVal = taskInput.text ? taskInput.text.trim() : "";
+        const textVal = taskTextEdit.text ? taskTextEdit.text.trim() : "";
         if (!textVal)
             return;
         if (root.tasksModel) {
             root.tasksModel.addTask(textVal);
-            taskInput.text = "";
-            taskInput.forceActiveFocus();
+            taskTextEdit.text = "";
+            taskTextEdit.forceActiveFocus();
         } else {
             console.warn("TasksContent: root.tasksModel is not bound!");
         }
@@ -37,21 +37,15 @@ FocusScope {
         enabled: slideout !== null
         function onRevealed() {
             root.forceActiveFocus();
-            taskInput.forceActiveFocus();
+            taskTextEdit.forceActiveFocus();
         }
-    }
-
-    Item {
-        id: taskKeyHandler
-        Keys.onReturnPressed: root.submitNewTask()
-        Keys.onEnterPressed: root.submitNewTask()
     }
 
     ColumnLayout {
         anchors.fill: parent
         spacing: Theme.spacingM
 
-        // Single Top Title Bar: [icon] Tasks  ...  [x]
+        // Single Top Title Bar: [icon] Tasks  ...  [expand] [close]
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
@@ -150,16 +144,125 @@ FocusScope {
             }
         }
 
-        // Quick Add Input Row (icon: plus, adds task and jumps to new entry on Enter)
-        DankTextField {
-            id: taskInput
+        // Auto-expanding Quick Add Input Box (default 40px, auto-expands up to 4x = 160px with scrollbar)
+        StyledRect {
+            id: taskInputContainer
             Layout.fillWidth: true
-            placeholderText: I18n.tr("Add a task... (Press Enter)")
-            leftIconName: "add"
-            showClearButton: true
-            keyForwardTargets: [taskKeyHandler]
+            Layout.preferredHeight: Math.min(160, Math.max(40, taskTextEdit.contentHeight + 16))
+            radius: Theme.cornerRadius
+            color: Theme.surfaceVariantAlpha
+            border.color: taskTextEdit.activeFocus ? Theme.primary : Theme.outlineMedium
+            border.width: taskTextEdit.activeFocus ? 2 : 1
 
-            onAccepted: root.submitNewTask()
+            Behavior on Layout.preferredHeight {
+                NumberAnimation {
+                    duration: 120
+                    easing.type: Easing.OutQuad
+                }
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Theme.spacingM
+                anchors.rightMargin: Theme.spacingS
+                anchors.topMargin: Theme.spacingXS
+                anchors.bottomMargin: Theme.spacingXS
+                spacing: Theme.spacingS
+
+                DankIcon {
+                    Layout.alignment: Qt.AlignTop
+                    Layout.topMargin: 4
+                    name: "add"
+                    size: Theme.iconSizeSmall
+                    color: taskTextEdit.activeFocus ? Theme.primary : Theme.surfaceVariantText
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    DankFlickable {
+                        id: inputFlickable
+                        anchors.fill: parent
+                        clip: true
+                        contentWidth: width
+                        contentHeight: taskTextEdit.contentHeight
+
+                        TextEdit {
+                            id: taskTextEdit
+                            width: inputFlickable.width - (inputScrollbar.visible ? 12 : 0)
+                            font.pixelSize: Theme.fontSizeMedium
+                            font.family: Theme.fontFamily
+                            color: Theme.surfaceText
+                            selectionColor: Theme.primaryContainer
+                            selectedTextColor: Theme.primary
+                            wrapMode: TextEdit.Wrap
+                            selectByMouse: true
+                            cursorDelegate: DankTextCursor {
+                                color: taskTextEdit.color
+                                shown: taskTextEdit.cursorVisible
+                            }
+
+                            onCursorRectangleChanged: {
+                                if (cursorRectangle.y < inputFlickable.contentY) {
+                                    inputFlickable.contentY = cursorRectangle.y;
+                                } else if (cursorRectangle.y + cursorRectangle.height > inputFlickable.contentY + inputFlickable.height) {
+                                    inputFlickable.contentY = cursorRectangle.y + cursorRectangle.height - inputFlickable.height;
+                                }
+                            }
+
+                            Keys.onReturnPressed: function(event) {
+                                if (event.modifiers & Qt.ShiftModifier) {
+                                    event.accepted = false;
+                                } else {
+                                    event.accepted = true;
+                                    root.submitNewTask();
+                                }
+                            }
+                            Keys.onEnterPressed: function(event) {
+                                if (event.modifiers & Qt.ShiftModifier) {
+                                    event.accepted = false;
+                                } else {
+                                    event.accepted = true;
+                                    root.submitNewTask();
+                                }
+                            }
+                        }
+
+                        // Placeholder label
+                        StyledText {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            text: I18n.tr("Add a task... (Press Enter)")
+                            font: taskTextEdit.font
+                            color: Theme.onSurface_38
+                            visible: taskTextEdit.text.length === 0 && !taskTextEdit.inputMethodComposing
+                        }
+
+                        DankScrollbar {
+                            id: inputScrollbar
+                            targetFlickable: inputFlickable
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                        }
+                    }
+                }
+
+                DankActionButton {
+                    Layout.alignment: Qt.AlignTop
+                    visible: taskTextEdit.text.length > 0
+                    circular: false
+                    iconName: "close"
+                    iconSize: Theme.iconSizeSmall - 2
+                    iconColor: Theme.surfaceVariantText
+                    tooltipText: I18n.tr("Clear")
+                    onClicked: {
+                        taskTextEdit.text = "";
+                        taskTextEdit.forceActiveFocus();
+                    }
+                }
+            }
         }
 
         // Task List or Empty State
@@ -200,64 +303,209 @@ FocusScope {
                 delegate: StyledRect {
                     id: taskItemRoot
                     width: taskListView.width
-                    height: 48
                     radius: Theme.cornerRadiusSmall
                     color: modelData.done ? Theme.withAlpha(Theme.surfaceContainerHigh, 0.4) : Theme.surfaceContainerHigh
+                    border.color: isEditing ? Theme.primary : "transparent"
+                    border.width: isEditing ? 1 : 0
 
-                    Row {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.spacingM
-                        anchors.right: removeBtn.left
-                        anchors.rightMargin: Theme.spacingS
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.spacingM
+                    property bool isExpanded: false
+                    property bool isEditing: false
 
-                        // Checkbox toggle (changes from plus mark to checkbox to mark tasks as completed)
-                        MouseArea {
-                            width: 28
-                            height: 28
-                            anchors.verticalCenter: parent.verticalCenter
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (root.tasksModel)
-                                    root.tasksModel.toggleTask(modelData.id);
-                            }
+                    readonly property real collapsedHeight: 48
+                    readonly property real maxAllowedHeight: Math.max(120, taskListView.height - Theme.spacingM)
+                    readonly property real fullContentHeight: Math.max(collapsedHeight, taskDisplayText.contentHeight + 24)
 
-                            DankIcon {
-                                anchors.centerIn: parent
-                                name: modelData.done ? "check_box" : "check_box_outline_blank"
-                                size: 22
-                                color: modelData.done ? Theme.primary : Theme.outlineMedium
-                            }
-                        }
+                    height: isEditing ? Math.min(Math.max(80, inlineEditInput.contentHeight + 24), maxAllowedHeight)
+                                      : (isExpanded ? Math.min(fullContentHeight, maxAllowedHeight) : collapsedHeight)
 
-                        // Task Text
-                        StyledText {
-                            width: parent.width - 36
-                            text: modelData.text || ""
-                            font.pixelSize: Theme.fontSizeMedium
-                            font.strikeout: modelData.done
-                            color: modelData.done ? Theme.surfaceVariantText : Theme.surfaceText
-                            opacity: modelData.done ? 0.6 : 1.0
-                            elide: Text.ElideRight
-                            anchors.verticalCenter: parent.verticalCenter
+                    Behavior on height {
+                        NumberAnimation {
+                            duration: 160
+                            easing.type: Easing.OutQuad
                         }
                     }
 
-                    // Remove Task Button
-                    DankActionButton {
-                        id: removeBtn
-                        anchors.right: parent.right
+                    function startEdit() {
+                        isEditing = true;
+                        isExpanded = true;
+                        inlineEditInput.text = modelData.text || "";
+                        Qt.callLater(() => inlineEditInput.forceActiveFocus());
+                    }
+
+                    function saveEdit() {
+                        const newText = inlineEditInput.text ? inlineEditInput.text.trim() : "";
+                        if (newText && root.tasksModel) {
+                            root.tasksModel.editTask(modelData.id, newText);
+                        }
+                        isEditing = false;
+                    }
+
+                    function cancelEdit() {
+                        isEditing = false;
+                    }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacingM
                         anchors.rightMargin: Theme.spacingXS
-                        anchors.verticalCenter: parent.verticalCenter
-                        circular: false
-                        iconName: "close"
-                        iconSize: Theme.iconSize - 6
-                        iconColor: Theme.surfaceVariantText
-                        tooltipText: I18n.tr("Delete task")
-                        onClicked: {
-                            if (root.tasksModel)
-                                root.tasksModel.removeTask(modelData.id);
+                        spacing: Theme.spacingS
+
+                        // Checkbox toggle (left)
+                        Item {
+                            Layout.preferredWidth: 28
+                            Layout.preferredHeight: 28
+                            Layout.alignment: taskItemRoot.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
+                            Layout.topMargin: taskItemRoot.isExpanded ? 10 : 0
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (root.tasksModel)
+                                        root.tasksModel.toggleTask(modelData.id);
+                                }
+
+                                DankIcon {
+                                    anchors.centerIn: parent
+                                    name: modelData.done ? "check_box" : "check_box_outline_blank"
+                                    size: 22
+                                    color: modelData.done ? Theme.primary : Theme.outlineMedium
+                                }
+                            }
+                        }
+
+                        // Task Text Area (expandable, scrollable if exceeds panel height, editable)
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            DankFlickable {
+                                id: textFlickable
+                                anchors.fill: parent
+                                anchors.topMargin: taskItemRoot.isExpanded ? 12 : 0
+                                anchors.bottomMargin: taskItemRoot.isExpanded ? 12 : 0
+                                clip: true
+                                contentWidth: width
+                                contentHeight: taskItemRoot.isEditing ? inlineEditInput.contentHeight : taskDisplayText.contentHeight
+
+                                // Read-only task text (clicks toggle expansion)
+                                StyledText {
+                                    id: taskDisplayText
+                                    visible: !taskItemRoot.isEditing
+                                    width: textFlickable.width - (itemScrollbar.visible ? 12 : 0)
+                                    anchors.verticalCenter: taskItemRoot.isExpanded ? undefined : parent.verticalCenter
+                                    text: modelData.text || ""
+                                    font.pixelSize: Theme.fontSizeMedium
+                                    font.strikeout: modelData.done
+                                    color: modelData.done ? Theme.surfaceVariantText : Theme.surfaceText
+                                    opacity: modelData.done ? 0.6 : 1.0
+                                    wrapMode: taskItemRoot.isExpanded ? Text.Wrap : Text.NoWrap
+                                    elide: taskItemRoot.isExpanded ? Text.ElideNone : Text.ElideRight
+                                }
+
+                                // Inline edit input
+                                TextEdit {
+                                    id: inlineEditInput
+                                    visible: taskItemRoot.isEditing
+                                    width: textFlickable.width - (itemScrollbar.visible ? 12 : 0)
+                                    font.pixelSize: Theme.fontSizeMedium
+                                    font.family: Theme.fontFamily
+                                    color: Theme.surfaceText
+                                    selectionColor: Theme.primaryContainer
+                                    selectedTextColor: Theme.primary
+                                    wrapMode: TextEdit.Wrap
+                                    selectByMouse: true
+                                    cursorDelegate: DankTextCursor {
+                                        color: inlineEditInput.color
+                                        shown: inlineEditInput.cursorVisible
+                                    }
+
+                                    Keys.onReturnPressed: function(event) {
+                                        if (event.modifiers & Qt.ShiftModifier) {
+                                            event.accepted = false;
+                                        } else {
+                                            event.accepted = true;
+                                            taskItemRoot.saveEdit();
+                                        }
+                                    }
+                                    Keys.onEnterPressed: function(event) {
+                                        if (event.modifiers & Qt.ShiftModifier) {
+                                            event.accepted = false;
+                                        } else {
+                                            event.accepted = true;
+                                            taskItemRoot.saveEdit();
+                                        }
+                                    }
+                                    Keys.onEscapePressed: function(event) {
+                                        event.accepted = true;
+                                        taskItemRoot.cancelEdit();
+                                    }
+                                }
+
+                                DankScrollbar {
+                                    id: itemScrollbar
+                                    targetFlickable: textFlickable
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    visible: !taskItemRoot.isEditing
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: taskItemRoot.isExpanded = !taskItemRoot.isExpanded
+                                }
+                            }
+                        }
+
+                        // Action Buttons Row (right)
+                        Row {
+                            Layout.alignment: taskItemRoot.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
+                            Layout.topMargin: taskItemRoot.isExpanded ? 6 : 0
+                            spacing: Theme.spacingXXS
+
+                            // Edit / Save Button
+                            DankActionButton {
+                                circular: false
+                                iconName: taskItemRoot.isEditing ? "check" : "edit"
+                                iconSize: Theme.iconSize - 6
+                                iconColor: taskItemRoot.isEditing ? Theme.primary : Theme.surfaceVariantText
+                                tooltipText: taskItemRoot.isEditing ? I18n.tr("Save (Enter)") : I18n.tr("Edit task")
+                                onClicked: {
+                                    if (taskItemRoot.isEditing) {
+                                        taskItemRoot.saveEdit();
+                                    } else {
+                                        taskItemRoot.startEdit();
+                                    }
+                                }
+                            }
+
+                            // Cancel Edit Button (when editing)
+                            DankActionButton {
+                                visible: taskItemRoot.isEditing
+                                circular: false
+                                iconName: "close"
+                                iconSize: Theme.iconSize - 6
+                                iconColor: Theme.surfaceVariantText
+                                tooltipText: I18n.tr("Cancel edit (Esc)")
+                                onClicked: taskItemRoot.cancelEdit()
+                            }
+
+                            // Delete Task Button (when not editing)
+                            DankActionButton {
+                                id: removeBtn
+                                visible: !taskItemRoot.isEditing
+                                circular: false
+                                iconName: "close"
+                                iconSize: Theme.iconSize - 6
+                                iconColor: Theme.surfaceVariantText
+                                tooltipText: I18n.tr("Delete task")
+                                onClicked: {
+                                    if (root.tasksModel)
+                                        root.tasksModel.removeTask(modelData.id);
+                                }
+                            }
                         }
                     }
                 }

@@ -102,6 +102,21 @@ Item {
         save();
     }
 
+    function editTask(taskId, newText) {
+        if (!newText || !newText.trim())
+            return;
+        const updated = [];
+        for (let i = 0; i < tasks.length; i++) {
+            const item = Object.assign({}, tasks[i]);
+            if (item.id === taskId) {
+                item.text = newText.trim();
+            }
+            updated.push(item);
+        }
+        tasks = updated;
+        save();
+    }
+
     function removeTask(taskId) {
         const updated = [];
         for (let i = 0; i < tasks.length; i++) {
