@@ -31,14 +31,17 @@ PluginComponent {
 
     Variants {
         id: taskSlideoutVariants
-        model: Quickshell.screens
+        model: SettingsData.getFilteredScreens("tasks")
 
         delegate: DankSlideout {
             id: taskSlideout
             title: ""
-            slideoutWidth: 440
-            edgeGap: 8
-            slideEdge: "right"
+            slideoutWidth: 480
+            expandable: true
+            expandedWidthValue: 960
+            edgeGap: SettingsData.notepadEffectiveEdgeGap
+            slideEdge: SettingsData.notepadSlideoutSide
+            customTransparency: Theme.notepadTransparency
             layerNamespace: "dms:tasks"
 
             content: Component {

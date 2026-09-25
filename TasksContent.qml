@@ -115,6 +115,26 @@ FocusScope {
                     }
                 }
 
+                // Expand / Collapse Button (matches Notepad)
+                DankActionButton {
+                    id: expandButton
+                    visible: root.slideout?.expandable ?? false
+                    circular: false
+                    iconName: root.slideout?.expandedWidth ? "unfold_less" : "unfold_more"
+                    iconSize: Theme.iconSize - 4
+                    iconColor: Theme.surfaceText
+                    tooltipText: root.slideout?.expandedWidth ? I18n.tr("Collapse") : I18n.tr("Expand")
+                    transform: Rotation {
+                        angle: 90
+                        origin.x: expandButton.width / 2
+                        origin.y: expandButton.height / 2
+                    }
+                    onClicked: {
+                        if (root.slideout)
+                            root.slideout.expandedWidth = !root.slideout.expandedWidth;
+                    }
+                }
+
                 // Single Close Button
                 DankActionButton {
                     circular: false
