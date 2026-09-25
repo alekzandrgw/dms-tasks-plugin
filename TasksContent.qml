@@ -18,6 +18,26 @@ FocusScope {
     readonly property var completedTasks: (root.tasksModel && root.tasksModel.completedTasks) ? root.tasksModel.completedTasks : []
     readonly property int totalCount: (root.tasksModel && root.tasksModel.tasks) ? root.tasksModel.tasks.length : 0
 
+    property int _settingsDep: 0
+
+    Connections {
+        target: SettingsData
+        enabled: typeof SettingsData !== "undefined"
+        function onPluginSettingsChanged() {
+            root._settingsDep++;
+        }
+    }
+
+    readonly property real effectiveOpacity: {
+        _settingsDep;
+        if (typeof SettingsData !== "undefined" && SettingsData.getPluginSetting) {
+            const val = SettingsData.getPluginSetting("tasks", "transparencyOverride", -1);
+            if (val >= 0)
+                return val;
+        }
+        return root.inPopout ? (Theme.floatingWindowTransparency ?? 0.95) : (Theme.notepadTransparency ?? 0.95);
+    }
+
     // Keyboard navigation state
     property int selectedSection: 0 // 0 = pending, 1 = completed
     property int selectedIndex: -1   // -1 = input, >= 0 = card index
@@ -442,32 +462,6 @@ FocusScope {
                     }
                 }
 
-                // Settings Button
-                DankActionButton {
-                    circular: false
-                    iconName: "settings"
-                    iconSize: Theme.iconSize - 4
-                    iconColor: root.showSettingsMenu ? Theme.primary : Theme.surfaceText
-                    tooltipText: I18n.tr("Tasks Settings")
-                    onClicked: root.showSettingsMenu = !root.showSettingsMenu
-                }
-
-                // Popout / Dock Button
-                DankActionButton {
-                    circular: false
-                    iconName: root.inPopout ? "dock_to_right" : "open_in_new"
-                    iconSize: Theme.iconSize - 4
-                    iconColor: Theme.surfaceText
-                    tooltipText: root.inPopout ? I18n.tr("Dock to slideout") : I18n.tr("Popout window")
-                    onClicked: {
-                        if (root.inPopout) {
-                            root.dockRequested();
-                        } else {
-                            root.popoutRequested();
-                        }
-                    }
-                }
-
                 // Expand / Collapse Button (slideout only)
                 DankActionButton {
                     id: expandButton
@@ -512,7 +506,7 @@ FocusScope {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(160, Math.max(40, taskTextEdit.contentHeight + 16))
             radius: Theme.cornerRadius
-            color: Theme.surfaceVariantAlpha
+            color: Theme.withAlpha(Theme.surfaceContainerHigh, root.effectiveOpacity * 0.7)
             border.color: taskTextEdit.activeFocus ? Theme.primary : Theme.outlineMedium
             border.width: taskTextEdit.activeFocus ? 2 : 1
 
@@ -757,9 +751,11 @@ FocusScope {
                                     StyledRect {
                                         id: taskItemRoot
                                         width: parent.width
-                                        radius: Theme.cornerRadiusSmall
+                                        radius: Theme.cornerRadius
                                         clip: true
-                                        color: isDragging ? Theme.surfaceContainerHighest : (delegateRoot.isSelected ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh)
+                                        color: isDragging ? Theme.withAlpha(Theme.surfaceContainerHighest, root.effectiveOpacity)
+                                                          : (delegateRoot.isSelected ? Theme.withAlpha(Theme.surfaceContainerHighest, root.effectiveOpacity)
+                                                                                     : Theme.withAlpha(Theme.surfaceContainerHigh, root.effectiveOpacity * 0.85))
                                         border.color: isDragging ? Theme.primary : (isEditing ? Theme.primary : (delegateRoot.isSelected ? Theme.primary : "transparent"))
                                         border.width: (isDragging || delegateRoot.isSelected) ? 2 : (isEditing ? 1 : 0)
                                         scale: isDragging ? 1.02 : 1.0
@@ -1233,9 +1229,10 @@ FocusScope {
                                     StyledRect {
                                         id: completedCard
                                         width: parent.width
-                                        radius: Theme.cornerRadiusSmall
+                                        radius: Theme.cornerRadius
                                         clip: true
-                                        color: completedDelegateRoot.isSelected ? Theme.surfaceContainerHighest : Theme.withAlpha(Theme.surfaceContainerHigh, 0.4)
+                                        color: completedDelegateRoot.isSelected ? Theme.withAlpha(Theme.surfaceContainerHighest, root.effectiveOpacity)
+                                                                                : Theme.withAlpha(Theme.surfaceContainerHigh, root.effectiveOpacity * 0.45)
                                         border.color: isEditing ? Theme.primary : (completedDelegateRoot.isSelected ? Theme.primary : "transparent")
                                         border.width: (isEditing || completedDelegateRoot.isSelected) ? 2 : 0
 
@@ -1512,6 +1509,45 @@ FocusScope {
                             anchors.right: parent.right
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom Footer Bar: Settings and Popout / Dock at bottom right
+        Item {
+            id: bottomBar
+            Layout.fillWidth: true
+            Layout.preferredHeight: 32
+
+            Row {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.spacingXS
+
+                // Settings Button
+                DankActionButton {
+                    circular: false
+                    iconName: "settings"
+                    iconSize: Theme.iconSize - 4
+                    iconColor: root.showSettingsMenu ? Theme.primary : Theme.surfaceText
+                    tooltipText: I18n.tr("Tasks Settings")
+                    onClicked: root.showSettingsMenu = !root.showSettingsMenu
+                }
+
+                // Popout / Dock Button
+                DankActionButton {
+                    circular: false
+                    iconName: root.inPopout ? "dock_to_right" : "open_in_new"
+                    iconSize: Theme.iconSize - 4
+                    iconColor: Theme.surfaceText
+                    tooltipText: root.inPopout ? I18n.tr("Dock to slideout") : I18n.tr("Popout window")
+                    onClicked: {
+                        if (root.inPopout) {
+                            root.dockRequested();
+                        } else {
+                            root.popoutRequested();
                         }
                     }
                 }

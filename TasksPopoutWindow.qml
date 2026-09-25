@@ -28,7 +28,26 @@ DankFloatingWindow {
     minimumSize: Qt.size(360, 420)
     implicitWidth: 480
     implicitHeight: 640
-    surfaceColor: Theme.floatingWindowSurface
+
+    property int _settingsDep: 0
+
+    Connections {
+        target: SettingsData
+        enabled: typeof SettingsData !== "undefined"
+        function onPluginSettingsChanged() {
+            win._settingsDep++;
+        }
+    }
+
+    readonly property real transparencyOverride: {
+        _settingsDep;
+        if (typeof SettingsData !== "undefined" && SettingsData.getPluginSetting) {
+            return SettingsData.getPluginSetting("tasks", "transparencyOverride", -1);
+        }
+        return -1;
+    }
+
+    surfaceColor: Theme.withAlpha(Theme.surfaceContainer, win.transparencyOverride >= 0 ? win.transparencyOverride : Theme.floatingWindowTransparency)
     visible: false
 
     onClosed: win.visible = false
@@ -39,7 +58,7 @@ DankFloatingWindow {
         TasksContent {
             id: contentItemInstance
             anchors.fill: parent
-            anchors.margins: Theme.spacingM
+            anchors.margins: Theme.spacingL
             tasksModel: win.tasksModel
             inPopout: true
             onDockRequested: {

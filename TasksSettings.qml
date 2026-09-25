@@ -185,7 +185,7 @@ Item {
                     StyledRect {
                         width: parent.width
                         height: root.editingFilePath ? 40 : 36
-                        radius: Theme.cornerRadiusSmall
+                        radius: Theme.cornerRadius
                         color: Theme.surfaceVariantAlpha
                         border.color: root.editingFilePath ? Theme.primary : Theme.outlineMedium
                         border.width: 1
