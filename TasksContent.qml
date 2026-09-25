@@ -322,7 +322,7 @@ FocusScope {
             }
         }
 
-        // Scrollable Tasks View: Pending Section + Completed Section
+        // Active / Pending Tasks Scrollable Area (takes all available middle space)
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -368,25 +368,33 @@ FocusScope {
                     // All pending tasks completed info pill (when pending === 0 && completed > 0)
                     Item {
                         width: parent.width
-                        height: 40
+                        height: Math.max(120, tasksFlickable.height - 40)
                         visible: root.pendingTasks.length === 0 && root.completedTasks.length > 0
 
-                        Row {
+                        Column {
                             anchors.centerIn: parent
                             spacing: Theme.spacingS
 
                             DankIcon {
+                                anchors.horizontalCenter: parent.horizontalCenter
                                 name: "task_alt"
-                                size: 18
+                                size: 36
                                 color: Theme.primary
-                                anchors.verticalCenter: parent.verticalCenter
                             }
 
                             StyledText {
-                                text: I18n.tr("All pending tasks completed!")
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: I18n.tr("All tasks complete!")
+                                font.pixelSize: Theme.fontSizeMedium
+                                font.weight: Font.Medium
+                                color: Theme.surfaceText
+                            }
+
+                            StyledText {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: I18n.tr("Completed tasks are saved at the bottom")
                                 font.pixelSize: Theme.fontSizeSmall
                                 color: Theme.surfaceVariantText
-                                anchors.verticalCenter: parent.verticalCenter
                             }
                         }
                     }
@@ -794,64 +802,119 @@ FocusScope {
                             }
                         }
                     }
+                }
 
-                    // Dedicated Completed Tasks Section at the bottom (cannot be arranged, no drag handle)
-                    Column {
-                        id: completedSection
-                        width: parent.width
+                DankScrollbar {
+                    id: tasksScrollbar
+                    targetFlickable: tasksFlickable
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                }
+            }
+        }
+
+        // Dedicated Completed Tasks Section pinned at the bottom of the panel
+        Item {
+            id: completedSectionContainer
+            Layout.fillWidth: true
+            visible: root.completedTasks.length > 0
+
+            property bool sectionExpanded: true
+            readonly property real maxCompletedHeight: root.pendingTasks.length === 0
+                ? Math.max(120, root.height - 180)
+                : Math.min(Math.floor(root.height * 0.45), 280)
+
+            Layout.preferredHeight: {
+                if (!visible) return 0;
+                if (!sectionExpanded) return 32;
+                return Math.min(maxCompletedHeight, completedHeader.height + Theme.spacingXS + completedColumn.implicitHeight);
+            }
+
+            Behavior on Layout.preferredHeight {
+                NumberAnimation {
+                    duration: 160
+                    easing.type: Easing.OutQuad
+                }
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: Theme.spacingXS
+
+                // Section Header: [collapse/expand] [check] Completed (N) ─── [clear]
+                Item {
+                    id: completedHeader
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacingXS
+                        anchors.rightMargin: Theme.spacingXS
                         spacing: Theme.spacingS
-                        visible: root.completedTasks.length > 0
 
-                        // Section Header: [check] Completed (N) ─── [clear]
-                        Item {
-                            width: parent.width
-                            height: 32
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: Theme.spacingXS
-                                anchors.rightMargin: Theme.spacingXS
-                                spacing: Theme.spacingS
-
-                                DankIcon {
-                                    name: "check_circle"
-                                    size: 16
-                                    color: Theme.primary
-                                    opacity: 0.8
-                                }
-
-                                StyledText {
-                                    text: I18n.tr("Completed (%1)").arg(root.completedTasks.length)
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    font.weight: Font.DemiBold
-                                    color: Theme.surfaceVariantText
-                                }
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    height: 1
-                                    color: Theme.outlineMedium
-                                    opacity: 0.25
-                                }
-
-                                DankActionButton {
-                                    circular: false
-                                    iconName: "delete_sweep"
-                                    iconSize: Theme.iconSizeSmall - 2
-                                    iconColor: Theme.surfaceVariantText
-                                    tooltipText: I18n.tr("Clear completed")
-                                    onClicked: {
-                                        if (root.tasksModel)
-                                            root.tasksModel.clearCompleted();
-                                    }
-                                }
-                            }
+                        DankActionButton {
+                            circular: false
+                            iconName: completedSectionContainer.sectionExpanded ? "keyboard_arrow_down" : "keyboard_arrow_right"
+                            iconSize: Theme.iconSizeSmall
+                            iconColor: Theme.surfaceVariantText
+                            tooltipText: completedSectionContainer.sectionExpanded ? I18n.tr("Collapse completed tasks") : I18n.tr("Expand completed tasks")
+                            onClicked: completedSectionContainer.sectionExpanded = !completedSectionContainer.sectionExpanded
                         }
 
-                        // Completed Tasks List
+                        DankIcon {
+                            name: "check_circle"
+                            size: 16
+                            color: Theme.primary
+                            opacity: 0.8
+                        }
+
+                        StyledText {
+                            text: I18n.tr("Completed (%1)").arg(root.completedTasks.length)
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.DemiBold
+                            color: Theme.surfaceVariantText
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: Theme.outlineMedium
+                            opacity: 0.25
+                        }
+
+                        DankActionButton {
+                            circular: false
+                            iconName: "delete_sweep"
+                            iconSize: Theme.iconSizeSmall - 2
+                            iconColor: Theme.surfaceVariantText
+                            tooltipText: I18n.tr("Clear completed")
+                            onClicked: {
+                                if (root.tasksModel)
+                                    root.tasksModel.clearCompleted();
+                            }
+                        }
+                    }
+                }
+
+                // Completed tasks list (scrollable if exceeding max height)
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: completedSectionContainer.sectionExpanded
+                    clip: true
+
+                    DankFlickable {
+                        id: completedFlickable
+                        anchors.fill: parent
+                        clip: true
+                        contentWidth: width
+                        contentHeight: completedColumn.implicitHeight
+
                         Column {
                             id: completedColumn
-                            width: parent.width
+                            width: completedFlickable.width - (completedScrollbar.visible ? 12 : 0)
                             spacing: Theme.spacingXS
 
                             Repeater {
@@ -1134,15 +1197,15 @@ FocusScope {
                                 }
                             }
                         }
-                    }
-                }
 
-                DankScrollbar {
-                    id: tasksScrollbar
-                    targetFlickable: tasksFlickable
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
+                        DankScrollbar {
+                            id: completedScrollbar
+                            targetFlickable: completedFlickable
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                        }
+                    }
                 }
             }
         }
