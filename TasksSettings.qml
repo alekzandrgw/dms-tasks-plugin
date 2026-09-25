@@ -8,7 +8,6 @@ Item {
 
     property bool isVisible: false
     property var tasksModel: null
-    property bool shortcutsExpanded: false
     property bool editingFilePath: false
 
     signal settingsRequested
@@ -422,115 +421,7 @@ Item {
                     }
                 }
 
-                Rectangle {
-                    width: parent.width
-                    height: 1
-                    color: Theme.outlineHeavy
-                    opacity: 0.5
-                }
 
-                // Setting 5: Keyboard Shortcuts Drawer
-                StyledRect {
-                    width: parent.width
-                    implicitHeight: shortcutsHeader.height + (root.shortcutsExpanded ? shortcutsColumn.implicitHeight + Theme.spacingM : 0)
-                    radius: Theme.cornerRadius
-                    color: root.shortcutsExpanded ? Theme.withAlpha(Theme.surfaceContainer, 0.95) : Theme.withAlpha(Theme.surfaceContainer, 0)
-                    border.color: root.shortcutsExpanded ? Theme.primary : Theme.outlineMedium
-                    border.width: root.shortcutsExpanded ? 2 : 1
-
-                    StateLayer {
-                        anchors.fill: parent
-                        stateColor: Theme.primary
-                        cornerRadius: parent.radius
-                        onClicked: root.shortcutsExpanded = !root.shortcutsExpanded
-                    }
-
-                    Row {
-                        id: shortcutsHeader
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.leftMargin: Theme.spacingM
-                        anchors.rightMargin: Theme.spacingS
-                        height: 36
-                        spacing: Theme.spacingS
-
-                        DankIcon {
-                            name: root.shortcutsExpanded ? "expand_less" : "expand_more"
-                            size: Theme.iconSizeSmall
-                            color: Theme.surfaceText
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        StyledText {
-                            text: I18n.tr("Keyboard Shortcuts")
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.Medium
-                            color: Theme.surfaceText
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-
-                    Column {
-                        id: shortcutsColumn
-                        visible: root.shortcutsExpanded
-                        width: parent.width - Theme.spacingL * 2
-                        anchors.top: shortcutsHeader.bottom
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        spacing: Theme.spacingXS
-
-                        Rectangle {
-                            width: parent.width
-                            height: 1
-                            color: Theme.outlineMedium
-                            opacity: 0.3
-                        }
-
-                        Repeater {
-                            model: [
-                                { key: "Mod+Alt+T", desc: I18n.tr("Toggle Tasks Panel") },
-                                { key: "Ctrl+N", desc: I18n.tr("Jump to New Task input field") },
-                                { key: "Up / Down", desc: I18n.tr("Navigate between tasks") },
-                                { key: "Ctrl+Tab", desc: I18n.tr("Switch pending ↔ completed section") },
-                                { key: "Ctrl+E", desc: I18n.tr("Edit selected task / Save when editing") },
-                                { key: "Space", desc: I18n.tr("Toggle completed / pending status") },
-                                { key: "Enter", desc: I18n.tr("Submit new task (Shift+Enter for newline)") },
-                                { key: "Esc", desc: I18n.tr("Cancel edit / Close settings / Hide panel") }
-                            ]
-
-                            delegate: RowLayout {
-                                width: shortcutsColumn.width
-
-                                Rectangle {
-                                    Layout.preferredHeight: 22
-                                    Layout.preferredWidth: shortcutKeyText.implicitWidth + 12
-                                    radius: 4
-                                    color: Theme.surfaceContainerHighest
-                                    border.color: Theme.outlineMedium
-                                    border.width: 1
-
-                                    StyledText {
-                                        id: shortcutKeyText
-                                        anchors.centerIn: parent
-                                        text: modelData.key
-                                        font.pixelSize: Theme.fontSizeSmall - 2
-                                        font.weight: Font.Bold
-                                        font.family: Theme.fontFamilyMono
-                                        color: Theme.primary
-                                    }
-                                }
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: modelData.desc
-                                    font.pixelSize: Theme.fontSizeSmall - 1
-                                    color: Theme.surfaceText
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
 
