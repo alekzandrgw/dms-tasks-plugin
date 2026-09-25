@@ -16,7 +16,20 @@ Item {
     property int totalPending: 0
     property int totalCompleted: 0
     readonly property string baseDir: Paths.strip(StandardPaths.writableLocation(StandardPaths.GenericStateLocation) + "/DankMaterialShell")
-    readonly property string storagePath: baseDir + "/tasks.json"
+    readonly property string defaultStoragePath: baseDir + "/tasks.json"
+    readonly property var _settingsDep: typeof SettingsData !== "undefined" ? SettingsData.pluginSettings : null
+    readonly property string customStoragePath: {
+        _settingsDep;
+        if (typeof SettingsData !== "undefined" && SettingsData.getPluginSetting) {
+            return SettingsData.getPluginSetting(pluginId, "storagePath", "");
+        }
+        return "";
+    }
+    property string storagePath: customStoragePath && customStoragePath.trim() !== "" ? customStoragePath.trim() : defaultStoragePath
+
+    onStoragePathChanged: {
+        load();
+    }
 
     onTasksChanged: {
         updateCounts();
@@ -71,6 +84,14 @@ Item {
         if (storageFile) {
             storageFile.setText(JSON.stringify(tasks, null, 2));
         }
+    }
+
+    function setStoragePath(newPath) {
+        const cleaned = newPath ? newPath.trim() : "";
+        if (typeof SettingsData !== "undefined" && SettingsData.setPluginSetting) {
+            SettingsData.setPluginSetting(pluginId, "storagePath", cleaned);
+        }
+        storagePath = cleaned !== "" ? cleaned : defaultStoragePath;
     }
 
     function updateCounts() {

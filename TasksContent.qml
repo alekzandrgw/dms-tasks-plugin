@@ -8,11 +8,22 @@ FocusScope {
 
     property var slideout: null
     property var tasksModel: null
+    property bool inPopout: false
+    property bool showSettingsMenu: false
+
+    signal popoutRequested
+    signal dockRequested
 
     readonly property var pendingTasks: (root.tasksModel && root.tasksModel.pendingTasks) ? root.tasksModel.pendingTasks : []
     readonly property var completedTasks: (root.tasksModel && root.tasksModel.completedTasks) ? root.tasksModel.completedTasks : []
     readonly property int totalCount: (root.tasksModel && root.tasksModel.tasks) ? root.tasksModel.tasks.length : 0
 
+    // Keyboard navigation state
+    property int selectedSection: 0 // 0 = pending, 1 = completed
+    property int selectedIndex: -1   // -1 = input, >= 0 = card index
+    property bool isEditingTask: false
+
+    // Drag-and-drop state
     property int draggedIndex: -1
     property int hoverTargetIndex: -1
     property real draggedItemHeight: 48
@@ -76,14 +87,281 @@ FocusScope {
         }
     }
 
-    Keys.onEscapePressed: {
-        if (draggedIndex >= 0) {
-            draggedIndex = -1;
-            hoverTargetIndex = -1;
+    function ensurePendingVisible(idx) {
+        if (!tasksFlickable || idx < 0 || idx >= pendingRepeater.count)
+            return;
+        const item = pendingRepeater.itemAt(idx);
+        if (!item)
+            return;
+        const itemTop = item.y;
+        const itemBottom = item.y + item.height;
+        if (itemTop < tasksFlickable.contentY) {
+            tasksFlickable.contentY = itemTop;
+        } else if (itemBottom > tasksFlickable.contentY + tasksFlickable.height) {
+            tasksFlickable.contentY = itemBottom - tasksFlickable.height;
+        }
+    }
+
+    function ensureCompletedVisible(idx) {
+        if (!completedFlickable || idx < 0 || idx >= completedRepeater.count)
+            return;
+        const item = completedRepeater.itemAt(idx);
+        if (!item)
+            return;
+        const itemTop = item.y;
+        const itemBottom = item.y + item.height;
+        if (itemTop < completedFlickable.contentY) {
+            completedFlickable.contentY = itemTop;
+        } else if (itemBottom > completedFlickable.contentY + completedFlickable.height) {
+            completedFlickable.contentY = itemBottom - completedFlickable.height;
+        }
+    }
+
+    function startCurrentEdit() {
+        if (selectedIndex < 0)
+            return;
+        if (selectedSection === 0) {
+            const item = pendingRepeater.itemAt(selectedIndex);
+            if (item && item.taskCard) {
+                item.taskCard.startEdit();
+                isEditingTask = true;
+            }
+        } else if (selectedSection === 1) {
+            const item = completedRepeater.itemAt(selectedIndex);
+            if (item && item.completedCard) {
+                item.completedCard.startEdit();
+                isEditingTask = true;
+            }
+        }
+    }
+
+    function saveCurrentEdit() {
+        if (selectedIndex < 0)
+            return;
+        if (selectedSection === 0) {
+            const item = pendingRepeater.itemAt(selectedIndex);
+            if (item && item.taskCard) {
+                item.taskCard.saveEdit();
+            }
+        } else if (selectedSection === 1) {
+            const item = completedRepeater.itemAt(selectedIndex);
+            if (item && item.completedCard) {
+                item.completedCard.saveEdit();
+            }
+        }
+        isEditingTask = false;
+        root.forceActiveFocus();
+    }
+
+    function cancelCurrentEdit() {
+        if (selectedIndex < 0)
+            return;
+        if (selectedSection === 0) {
+            const item = pendingRepeater.itemAt(selectedIndex);
+            if (item && item.taskCard) {
+                item.taskCard.cancelEdit();
+            }
+        } else if (selectedSection === 1) {
+            const item = completedRepeater.itemAt(selectedIndex);
+            if (item && item.completedCard) {
+                item.completedCard.cancelEdit();
+            }
+        }
+        isEditingTask = false;
+        root.forceActiveFocus();
+    }
+
+    function toggleCurrentTask() {
+        if (selectedIndex < 0 || !root.tasksModel)
+            return;
+        if (selectedSection === 0 && selectedIndex < root.pendingTasks.length) {
+            const task = root.pendingTasks[selectedIndex];
+            if (task) {
+                root.tasksModel.toggleTask(task.id);
+                if (selectedIndex >= root.pendingTasks.length - 1) {
+                    selectedIndex = Math.max(0, root.pendingTasks.length - 2);
+                }
+            }
+        } else if (selectedSection === 1 && selectedIndex < root.completedTasks.length) {
+            const task = root.completedTasks[selectedIndex];
+            if (task) {
+                root.tasksModel.toggleTask(task.id);
+                if (selectedIndex >= root.completedTasks.length - 1) {
+                    selectedIndex = Math.max(0, root.completedTasks.length - 2);
+                }
+            }
+        }
+    }
+
+    function toggleCurrentExpand() {
+        if (selectedIndex < 0)
+            return;
+        if (selectedSection === 0) {
+            const item = pendingRepeater.itemAt(selectedIndex);
+            if (item && item.taskCard) {
+                item.taskCard.isExpanded = !item.taskCard.isExpanded;
+            }
+        } else if (selectedSection === 1) {
+            const item = completedRepeater.itemAt(selectedIndex);
+            if (item && item.completedCard) {
+                item.completedCard.isExpanded = !item.completedCard.isExpanded;
+            }
+        }
+    }
+
+    Keys.onPressed: function(event) {
+        // Ctrl + N: Jump to new task input
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_N) {
+            event.accepted = true;
+            root.selectedIndex = -1;
+            root.isEditingTask = false;
+            taskTextEdit.forceActiveFocus();
             return;
         }
-        if (slideout) {
-            slideout.hide();
+
+        // When settings menu is open, Esc closes it
+        if (root.showSettingsMenu) {
+            if (event.key === Qt.Key_Escape) {
+                event.accepted = true;
+                root.showSettingsMenu = false;
+            }
+            return;
+        }
+
+        // If currently editing inline in a task
+        if (root.isEditingTask) {
+            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
+                event.accepted = true;
+                root.saveCurrentEdit();
+                return;
+            }
+            if (event.key === Qt.Key_Escape) {
+                event.accepted = true;
+                root.cancelCurrentEdit();
+                return;
+            }
+            return;
+        }
+
+        // If input box is focused:
+        if (taskTextEdit.activeFocus) {
+            if (event.key === Qt.Key_Down && taskTextEdit.lineCount <= 1) {
+                if (root.pendingTasks.length > 0) {
+                    event.accepted = true;
+                    taskTextEdit.focus = false;
+                    root.forceActiveFocus();
+                    root.selectedSection = 0;
+                    root.selectedIndex = 0;
+                    root.ensurePendingVisible(0);
+                } else if (root.completedTasks.length > 0) {
+                    event.accepted = true;
+                    taskTextEdit.focus = false;
+                    root.forceActiveFocus();
+                    root.selectedSection = 1;
+                    root.selectedIndex = 0;
+                    root.ensureCompletedVisible(0);
+                }
+                return;
+            }
+            return;
+        }
+
+        // Tab: Switch between pending and completed section
+        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            event.accepted = true;
+            if (root.selectedSection === 0 && root.completedTasks.length > 0) {
+                root.selectedSection = 1;
+                root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.completedTasks.length - 1));
+                root.ensureCompletedVisible(root.selectedIndex);
+            } else if (root.selectedSection === 1 && root.pendingTasks.length > 0) {
+                root.selectedSection = 0;
+                root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.pendingTasks.length - 1));
+                root.ensurePendingVisible(root.selectedIndex);
+            }
+            return;
+        }
+
+        // Down arrow: Navigate forward
+        if (event.key === Qt.Key_Down) {
+            event.accepted = true;
+            if (root.selectedSection === 0) {
+                if (root.selectedIndex < root.pendingTasks.length - 1) {
+                    root.selectedIndex++;
+                    root.ensurePendingVisible(root.selectedIndex);
+                } else if (root.completedTasks.length > 0) {
+                    root.selectedSection = 1;
+                    root.selectedIndex = 0;
+                    root.ensureCompletedVisible(0);
+                }
+            } else if (root.selectedSection === 1) {
+                if (root.selectedIndex < root.completedTasks.length - 1) {
+                    root.selectedIndex++;
+                    root.ensureCompletedVisible(root.selectedIndex);
+                }
+            }
+            return;
+        }
+
+        // Up arrow: Navigate backward
+        if (event.key === Qt.Key_Up) {
+            event.accepted = true;
+            if (root.selectedSection === 1) {
+                if (root.selectedIndex > 0) {
+                    root.selectedIndex--;
+                    root.ensureCompletedVisible(root.selectedIndex);
+                } else if (root.pendingTasks.length > 0) {
+                    root.selectedSection = 0;
+                    root.selectedIndex = root.pendingTasks.length - 1;
+                    root.ensurePendingVisible(root.selectedIndex);
+                } else {
+                    root.selectedIndex = -1;
+                    taskTextEdit.forceActiveFocus();
+                }
+            } else if (root.selectedSection === 0) {
+                if (root.selectedIndex > 0) {
+                    root.selectedIndex--;
+                    root.ensurePendingVisible(root.selectedIndex);
+                } else {
+                    root.selectedIndex = -1;
+                    taskTextEdit.forceActiveFocus();
+                }
+            }
+            return;
+        }
+
+        // Ctrl + E: Edit selected task
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
+            event.accepted = true;
+            root.startCurrentEdit();
+            return;
+        }
+
+        // Space: Toggle task completion
+        if (event.key === Qt.Key_Space) {
+            event.accepted = true;
+            root.toggleCurrentTask();
+            return;
+        }
+
+        // Enter: Toggle expand / collapse
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            event.accepted = true;
+            root.toggleCurrentExpand();
+            return;
+        }
+
+        // Escape: Close panel / cancel drag
+        if (event.key === Qt.Key_Escape) {
+            event.accepted = true;
+            if (root.draggedIndex >= 0) {
+                root.draggedIndex = -1;
+                root.hoverTargetIndex = -1;
+                return;
+            }
+            if (slideout) {
+                slideout.hide();
+            }
+            return;
         }
     }
 
@@ -100,7 +378,7 @@ FocusScope {
         anchors.fill: parent
         spacing: Theme.spacingM
 
-        // Single Top Title Bar: [icon] Tasks  ...  [expand] [close]
+        // Single Top Title Bar: [icon] Tasks  ... [clear] [settings] [popout] [expand] [close]
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
@@ -164,10 +442,36 @@ FocusScope {
                     }
                 }
 
-                // Expand / Collapse Button (matches Notepad)
+                // Settings Button
+                DankActionButton {
+                    circular: false
+                    iconName: "settings"
+                    iconSize: Theme.iconSize - 4
+                    iconColor: root.showSettingsMenu ? Theme.primary : Theme.surfaceText
+                    tooltipText: I18n.tr("Tasks Settings")
+                    onClicked: root.showSettingsMenu = !root.showSettingsMenu
+                }
+
+                // Popout / Dock Button
+                DankActionButton {
+                    circular: false
+                    iconName: root.inPopout ? "dock_to_right" : "open_in_new"
+                    iconSize: Theme.iconSize - 4
+                    iconColor: Theme.surfaceText
+                    tooltipText: root.inPopout ? I18n.tr("Dock to slideout") : I18n.tr("Popout window")
+                    onClicked: {
+                        if (root.inPopout) {
+                            root.dockRequested();
+                        } else {
+                            root.popoutRequested();
+                        }
+                    }
+                }
+
+                // Expand / Collapse Button (slideout only)
                 DankActionButton {
                     id: expandButton
-                    visible: Boolean(root.slideout && root.slideout.expandable)
+                    visible: Boolean(!root.inPopout && root.slideout && root.slideout.expandable)
                     circular: false
                     iconName: (root.slideout && root.slideout.expandedWidth) ? "unfold_less" : "unfold_more"
                     iconSize: Theme.iconSize - 4
@@ -184,7 +488,7 @@ FocusScope {
                     }
                 }
 
-                // Single Close Button
+                // Close Button
                 DankActionButton {
                     circular: false
                     iconName: "close"
@@ -192,14 +496,17 @@ FocusScope {
                     iconColor: Theme.surfaceText
                     tooltipText: I18n.tr("Close (Esc)")
                     onClicked: {
-                        if (root.slideout)
+                        if (root.inPopout) {
+                            root.dockRequested();
+                        } else if (root.slideout) {
                             root.slideout.hide();
+                        }
                     }
                 }
             }
         }
 
-        // Auto-expanding Quick Add Input Box (default 40px, auto-expands up to 4x = 160px with scrollbar)
+        // Auto-expanding Quick Add Input Box
         StyledRect {
             id: taskInputContainer
             Layout.fillWidth: true
@@ -208,13 +515,6 @@ FocusScope {
             color: Theme.surfaceVariantAlpha
             border.color: taskTextEdit.activeFocus ? Theme.primary : Theme.outlineMedium
             border.width: taskTextEdit.activeFocus ? 2 : 1
-
-            Behavior on Layout.preferredHeight {
-                NumberAnimation {
-                    duration: 120
-                    easing.type: Easing.OutQuad
-                }
-            }
 
             RowLayout {
                 anchors.fill: parent
@@ -417,6 +717,10 @@ FocusScope {
                                 height: taskItemRoot.height
                                 z: taskItemRoot.isDragging ? 100 : 1
 
+                                property alias taskCard: taskItemRoot
+
+                                readonly property bool isSelected: root.selectedSection === 0 && root.selectedIndex === index && !taskTextEdit.activeFocus
+
                                 Item {
                                     id: displacer
                                     width: parent.width
@@ -429,12 +733,10 @@ FocusScope {
                                             return 0;
                                         }
                                         if (root.draggedIndex < root.hoverTargetIndex) {
-                                            // Dragging DOWN: items between (draggedIndex, hoverTargetIndex] shift UP
                                             if (index > root.draggedIndex && index <= root.hoverTargetIndex) {
                                                 return -slotStep;
                                             }
                                         } else if (root.draggedIndex > root.hoverTargetIndex) {
-                                            // Dragging UP: items between [hoverTargetIndex, draggedIndex) shift DOWN
                                             if (index >= root.hoverTargetIndex && index < root.draggedIndex) {
                                                 return slotStep;
                                             }
@@ -457,9 +759,9 @@ FocusScope {
                                         width: parent.width
                                         radius: Theme.cornerRadiusSmall
                                         clip: true
-                                        color: isDragging ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh
-                                        border.color: isDragging ? Theme.primary : (isEditing ? Theme.primary : "transparent")
-                                        border.width: isDragging ? 2 : (isEditing ? 1 : 0)
+                                        color: isDragging ? Theme.surfaceContainerHighest : (delegateRoot.isSelected ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh)
+                                        border.color: isDragging ? Theme.primary : (isEditing ? Theme.primary : (delegateRoot.isSelected ? Theme.primary : "transparent"))
+                                        border.width: (isDragging || delegateRoot.isSelected) ? 2 : (isEditing ? 1 : 0)
                                         scale: isDragging ? 1.02 : 1.0
                                         z: isDragging ? 100 : 1
 
@@ -535,7 +837,7 @@ FocusScope {
                                             anchors.rightMargin: Theme.spacingXS
                                             spacing: Theme.spacingXS
 
-                                            // Drag Handle (left-side of checkbox)
+                                            // Drag Handle
                                             Item {
                                                 id: dragHandleItem
                                                 Layout.preferredWidth: 20
@@ -589,7 +891,7 @@ FocusScope {
                                                 }
                                             }
 
-                                            // Checkbox toggle (left)
+                                            // Checkbox toggle
                                             Item {
                                                 Layout.preferredWidth: 28
                                                 Layout.preferredHeight: 28
@@ -619,17 +921,17 @@ FocusScope {
                                                 Layout.fillWidth: true
                                                 Layout.fillHeight: true
 
-                                                // Invisible text for calculating accurate expanded height
+                                                // Only measure full height when card is expanded (optimizes resize performance)
                                                 StyledText {
                                                     id: fullTextMeasure
                                                     visible: false
-                                                    width: Math.max(100, textAreaItem.width)
-                                                    text: modelData.text || ""
+                                                    width: taskItemRoot.isExpanded ? Math.max(100, textAreaItem.width) : 100
+                                                    text: taskItemRoot.isExpanded ? (modelData.text || "") : ""
                                                     font.pixelSize: Theme.fontSizeMedium
                                                     wrapMode: Text.Wrap
                                                 }
 
-                                                // Collapsed single-line view (strictly centered vertically)
+                                                // Collapsed single-line view
                                                 StyledText {
                                                     id: taskDisplayText
                                                     visible: !taskItemRoot.isEditing && !taskItemRoot.isExpanded
@@ -644,7 +946,7 @@ FocusScope {
                                                     elide: Text.ElideRight
                                                 }
 
-                                                // Expanded view with text wrapping and scrollbar if exceeding 4x cap
+                                                // Expanded view with text wrapping and scrollbar
                                                 DankFlickable {
                                                     id: textFlickable
                                                     visible: !taskItemRoot.isEditing && taskItemRoot.isExpanded
@@ -745,7 +1047,11 @@ FocusScope {
                                                     anchors.rightMargin: (taskItemRoot.isExpanded && itemScrollbar.visible) ? 14 : 0
                                                     visible: !taskItemRoot.isEditing
                                                     cursorShape: Qt.PointingHandCursor
-                                                    onClicked: taskItemRoot.isExpanded = !taskItemRoot.isExpanded
+                                                    onClicked: {
+                                                        root.selectedSection = 0;
+                                                        root.selectedIndex = index;
+                                                        taskItemRoot.isExpanded = !taskItemRoot.isExpanded;
+                                                    }
                                                 }
                                             }
 
@@ -763,6 +1069,8 @@ FocusScope {
                                                     iconColor: taskItemRoot.isEditing ? Theme.primary : Theme.surfaceVariantText
                                                     tooltipText: taskItemRoot.isEditing ? I18n.tr("Save (Enter)") : I18n.tr("Edit task")
                                                     onClicked: {
+                                                        root.selectedSection = 0;
+                                                        root.selectedIndex = index;
                                                         if (taskItemRoot.isEditing) {
                                                             taskItemRoot.saveEdit();
                                                         } else {
@@ -771,7 +1079,7 @@ FocusScope {
                                                     }
                                                 }
 
-                                                // Cancel Edit Button (when editing)
+                                                // Cancel Edit Button
                                                 DankActionButton {
                                                     visible: taskItemRoot.isEditing
                                                     circular: false
@@ -782,7 +1090,7 @@ FocusScope {
                                                     onClicked: taskItemRoot.cancelEdit()
                                                 }
 
-                                                // Delete Task Button (when not editing)
+                                                // Delete Task Button
                                                 DankActionButton {
                                                     visible: !taskItemRoot.isEditing
                                                     circular: false
@@ -829,13 +1137,6 @@ FocusScope {
                 if (!visible) return 0;
                 if (!sectionExpanded) return 32;
                 return Math.min(maxCompletedHeight, completedHeader.height + Theme.spacingXS + completedColumn.implicitHeight);
-            }
-
-            Behavior on Layout.preferredHeight {
-                NumberAnimation {
-                    duration: 160
-                    easing.type: Easing.OutQuad
-                }
             }
 
             ColumnLayout {
@@ -926,14 +1227,17 @@ FocusScope {
                                     width: completedColumn.width
                                     height: completedCard.height
 
+                                    property alias completedCard: completedCard
+                                    readonly property bool isSelected: root.selectedSection === 1 && root.selectedIndex === index && !taskTextEdit.activeFocus
+
                                     StyledRect {
                                         id: completedCard
                                         width: parent.width
                                         radius: Theme.cornerRadiusSmall
                                         clip: true
-                                        color: Theme.withAlpha(Theme.surfaceContainerHigh, 0.4)
-                                        border.color: isEditing ? Theme.primary : "transparent"
-                                        border.width: isEditing ? 1 : 0
+                                        color: completedDelegateRoot.isSelected ? Theme.surfaceContainerHighest : Theme.withAlpha(Theme.surfaceContainerHigh, 0.4)
+                                        border.color: isEditing ? Theme.primary : (completedDelegateRoot.isSelected ? Theme.primary : "transparent")
+                                        border.width: (isEditing || completedDelegateRoot.isSelected) ? 2 : 0
 
                                         property bool isExpanded: false
                                         property bool isEditing: false
@@ -979,9 +1283,7 @@ FocusScope {
                                             anchors.rightMargin: Theme.spacingXS
                                             spacing: Theme.spacingXS
 
-                                            // NO drag handle! (Completed tasks cannot be arranged)
-
-                                            // Checkbox toggle (clicking unchecks and moves back to pending)
+                                            // Checkbox toggle
                                             Item {
                                                 Layout.preferredWidth: 28
                                                 Layout.preferredHeight: 28
@@ -1011,17 +1313,17 @@ FocusScope {
                                                 Layout.fillWidth: true
                                                 Layout.fillHeight: true
 
-                                                // Invisible text for calculating accurate expanded height
+                                                // Only measure full height when card is expanded
                                                 StyledText {
                                                     id: completedFullTextMeasure
                                                     visible: false
-                                                    width: Math.max(100, completedTextAreaItem.width)
-                                                    text: modelData.text || ""
+                                                    width: completedCard.isExpanded ? Math.max(100, completedTextAreaItem.width) : 100
+                                                    text: completedCard.isExpanded ? (modelData.text || "") : ""
                                                     font.pixelSize: Theme.fontSizeMedium
                                                     wrapMode: Text.Wrap
                                                 }
 
-                                                // Collapsed single-line view (strikeout, muted)
+                                                // Collapsed single-line view
                                                 StyledText {
                                                     id: completedDisplayText
                                                     visible: !completedCard.isEditing && !completedCard.isExpanded
@@ -1038,7 +1340,7 @@ FocusScope {
                                                     elide: Text.ElideRight
                                                 }
 
-                                                // Expanded view with text wrapping and scrollbar if exceeding 4x cap
+                                                // Expanded view with text wrapping and scrollbar
                                                 DankFlickable {
                                                     id: completedTextFlickable
                                                     visible: !completedCard.isEditing && completedCard.isExpanded
@@ -1141,7 +1443,11 @@ FocusScope {
                                                     anchors.rightMargin: (completedCard.isExpanded && completedItemScrollbar.visible) ? 14 : 0
                                                     visible: !completedCard.isEditing
                                                     cursorShape: Qt.PointingHandCursor
-                                                    onClicked: completedCard.isExpanded = !completedCard.isExpanded
+                                                    onClicked: {
+                                                        root.selectedSection = 1;
+                                                        root.selectedIndex = index;
+                                                        completedCard.isExpanded = !completedCard.isExpanded;
+                                                    }
                                                 }
                                             }
 
@@ -1159,6 +1465,8 @@ FocusScope {
                                                     iconColor: completedCard.isEditing ? Theme.primary : Theme.surfaceVariantText
                                                     tooltipText: completedCard.isEditing ? I18n.tr("Save (Enter)") : I18n.tr("Edit task")
                                                     onClicked: {
+                                                        root.selectedSection = 1;
+                                                        root.selectedIndex = index;
                                                         if (completedCard.isEditing) {
                                                             completedCard.saveEdit();
                                                         } else {
@@ -1167,7 +1475,7 @@ FocusScope {
                                                     }
                                                 }
 
-                                                // Cancel Edit Button (when editing)
+                                                // Cancel Edit Button
                                                 DankActionButton {
                                                     visible: completedCard.isEditing
                                                     circular: false
@@ -1178,7 +1486,7 @@ FocusScope {
                                                     onClicked: completedCard.cancelEdit()
                                                 }
 
-                                                // Delete Task Button (when not editing)
+                                                // Delete Task Button
                                                 DankActionButton {
                                                     visible: !completedCard.isEditing
                                                     circular: false
@@ -1209,5 +1517,14 @@ FocusScope {
                 }
             }
         }
+    }
+
+    // Settings overlay modal
+    TasksSettings {
+        id: settingsOverlay
+        anchors.fill: parent
+        isVisible: root.showSettingsMenu
+        tasksModel: root.tasksModel
+        onSettingsRequested: root.showSettingsMenu = !root.showSettingsMenu
     }
 }
