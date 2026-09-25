@@ -797,15 +797,17 @@ FocusScope {
                                         clip: true
                                         color: isDragging ? Theme.withAlpha(Theme.surfaceContainerHighest, root.effectiveOpacity)
                                                           : (delegateRoot.isSelected ? Theme.withAlpha(Theme.surfaceContainerHighest, root.effectiveOpacity)
-                                                                                     : Theme.withAlpha(Theme.surfaceContainerHigh, root.effectiveOpacity * 0.85))
+                                                                                     : (taskCardHoverHandler.hovered
+                                                                                         ? Theme.withAlpha(Theme.surfaceContainerHighest, root.effectiveOpacity * 0.75)
+                                                                                         : Theme.withAlpha(Theme.surfaceContainerHigh, root.effectiveOpacity * 0.85)))
                                         border.color: isDragging ? Theme.primary : (isEditing ? Theme.primary : (delegateRoot.isSelected ? Theme.primary : "transparent"))
                                         border.width: (isDragging || delegateRoot.isSelected) ? 2 : (isEditing ? 1 : 0)
-                                        scale: isDragging ? 1.02 : 1.0
                                         z: isDragging ? 100 : 1
 
-                                        Behavior on scale {
-                                            NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+                                        HoverHandler {
+                                            id: taskCardHoverHandler
                                         }
+
                                         Behavior on color {
                                             ColorAnimation { duration: 120 }
                                         }
@@ -867,6 +869,22 @@ FocusScope {
                                             root.hoverTargetIndex = -1;
                                             if (fromIdx >= 0 && toIdx >= 0 && fromIdx !== toIdx && root.tasksModel) {
                                                 root.tasksModel.movePendingTask(fromIdx, toIdx);
+                                            }
+                                        }
+
+                                        // Background click & double click fallback
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            z: -1
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                root.selectedSection = 0;
+                                                root.selectedIndex = index;
+                                            }
+                                            onDoubleClicked: {
+                                                root.selectedSection = 0;
+                                                root.selectedIndex = index;
+                                                taskItemRoot.startEdit();
                                             }
                                         }
 
@@ -1080,7 +1098,7 @@ FocusScope {
                                                     }
                                                 }
 
-                                                // Click to expand / collapse
+                                                // Click to expand / collapse, double click to edit
                                                 MouseArea {
                                                     anchors.fill: parent
                                                     anchors.rightMargin: (taskItemRoot.isExpanded && itemScrollbar.visible) ? 14 : 0
@@ -1092,6 +1110,11 @@ FocusScope {
                                                         if (taskItemRoot.isLongText) {
                                                             taskItemRoot.isExpanded = !taskItemRoot.isExpanded;
                                                         }
+                                                    }
+                                                    onDoubleClicked: {
+                                                        root.selectedSection = 0;
+                                                        root.selectedIndex = index;
+                                                        taskItemRoot.startEdit();
                                                     }
                                                 }
                                             }
@@ -1304,9 +1327,22 @@ FocusScope {
                                         radius: Theme.cornerRadius
                                         clip: true
                                         color: completedDelegateRoot.isSelected ? Theme.withAlpha(Theme.surfaceContainerHighest, root.effectiveOpacity)
-                                                                                : Theme.withAlpha(Theme.surfaceContainerHigh, root.effectiveOpacity * 0.45)
+                                                                                : (completedCardHoverHandler.hovered
+                                                                                    ? Theme.withAlpha(Theme.surfaceContainerHighest, root.effectiveOpacity * 0.55)
+                                                                                    : Theme.withAlpha(Theme.surfaceContainerHigh, root.effectiveOpacity * 0.45))
                                         border.color: isEditing ? Theme.primary : (completedDelegateRoot.isSelected ? Theme.primary : "transparent")
                                         border.width: (isEditing || completedDelegateRoot.isSelected) ? 2 : 0
+
+                                        HoverHandler {
+                                            id: completedCardHoverHandler
+                                        }
+
+                                        Behavior on color {
+                                            ColorAnimation { duration: 120 }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation { duration: 120 }
+                                        }
 
                                         property bool isExpanded: false
                                         property bool isEditing: false
@@ -1345,6 +1381,22 @@ FocusScope {
                                         function cancelEdit() {
                                             isEditing = false;
                                             isExpanded = false;
+                                        }
+
+                                        // Background click & double click fallback
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            z: -1
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                root.selectedSection = 1;
+                                                root.selectedIndex = index;
+                                            }
+                                            onDoubleClicked: {
+                                                root.selectedSection = 1;
+                                                root.selectedIndex = index;
+                                                completedCard.startEdit();
+                                            }
                                         }
 
                                         RowLayout {
@@ -1507,7 +1559,7 @@ FocusScope {
                                                     }
                                                 }
 
-                                                // Click to expand / collapse
+                                                // Click to expand / collapse, double click to edit
                                                 MouseArea {
                                                     anchors.fill: parent
                                                     anchors.rightMargin: (completedCard.isExpanded && completedItemScrollbar.visible) ? 14 : 0
@@ -1519,6 +1571,11 @@ FocusScope {
                                                         if (completedCard.isLongText) {
                                                             completedCard.isExpanded = !completedCard.isExpanded;
                                                         }
+                                                    }
+                                                    onDoubleClicked: {
+                                                        root.selectedSection = 1;
+                                                        root.selectedIndex = index;
+                                                        completedCard.startEdit();
                                                     }
                                                 }
                                             }
