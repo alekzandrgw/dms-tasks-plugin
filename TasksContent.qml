@@ -302,87 +302,183 @@ FocusScope {
                 spacing: Theme.spacingXS
                 clip: true
 
-                delegate: StyledRect {
-                    id: taskItemRoot
+                delegate: Item {
+                    id: delegateRoot
                     width: taskListView.width
-                    radius: Theme.cornerRadiusSmall
-                    clip: true
-                    color: modelData.done ? Theme.withAlpha(Theme.surfaceContainerHigh, 0.4) : Theme.surfaceContainerHigh
-                    border.color: isEditing ? Theme.primary : "transparent"
-                    border.width: isEditing ? 1 : 0
+                    height: taskItemRoot.height
 
-                    property bool isExpanded: false
-                    property bool isEditing: false
+                    StyledRect {
+                        id: taskItemRoot
+                        width: parent.width
+                        radius: Theme.cornerRadiusSmall
+                        clip: true
+                        color: isDragging ? Theme.surfaceContainerHighest : (modelData.done ? Theme.withAlpha(Theme.surfaceContainerHigh, 0.4) : Theme.surfaceContainerHigh)
+                        border.color: isDragging ? Theme.primary : (isEditing ? Theme.primary : "transparent")
+                        border.width: isDragging ? 2 : (isEditing ? 1 : 0)
+                        scale: isDragging ? 1.02 : 1.0
+                        z: isDragging ? 100 : 1
 
-                    readonly property real collapsedHeight: 48
-                    readonly property real maxAllowedHeight: collapsedHeight * 4
-                    readonly property real fullContentHeight: Math.max(collapsedHeight, fullTextMeasure.contentHeight + 24)
-
-                    height: isEditing ? Math.min(Math.max(collapsedHeight, inlineEditInput.contentHeight + 24), maxAllowedHeight)
-                                      : (isExpanded ? Math.min(fullContentHeight, maxAllowedHeight) : collapsedHeight)
-
-                    Behavior on height {
-                        NumberAnimation {
-                            duration: 160
-                            easing.type: Easing.OutQuad
+                        Behavior on scale {
+                            NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
                         }
-                    }
-
-                    function startEdit() {
-                        isEditing = true;
-                        isExpanded = true;
-                        inlineEditInput.text = modelData.text || "";
-                        Qt.callLater(() => inlineEditInput.forceActiveFocus());
-                    }
-
-                    function saveEdit() {
-                        const newText = inlineEditInput.text ? inlineEditInput.text.trim() : "";
-                        if (newText && root.tasksModel) {
-                            root.tasksModel.editTask(modelData.id, newText);
+                        Behavior on color {
+                            ColorAnimation { duration: 120 }
                         }
-                        isEditing = false;
-                        isExpanded = false;
-                    }
-
-                    function cancelEdit() {
-                        isEditing = false;
-                        isExpanded = false;
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spacingM
-                        anchors.rightMargin: Theme.spacingXS
-                        spacing: Theme.spacingS
-
-                        // Checkbox toggle (left)
-                        Item {
-                            Layout.preferredWidth: 28
-                            Layout.preferredHeight: 28
-                            Layout.alignment: taskItemRoot.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
-                            Layout.topMargin: taskItemRoot.isExpanded ? 10 : 0
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (root.tasksModel)
-                                        root.tasksModel.toggleTask(modelData.id);
-                                }
-
-                                DankIcon {
-                                    anchors.centerIn: parent
-                                    name: modelData.done ? "check_box" : "check_box_outline_blank"
-                                    size: 22
-                                    color: modelData.done ? Theme.primary : Theme.outlineMedium
-                                }
+                        Behavior on border.color {
+                            ColorAnimation { duration: 120 }
+                        }
+                        Behavior on y {
+                            enabled: !taskItemRoot.isDragging
+                            NumberAnimation {
+                                duration: 160
+                                easing.type: Easing.OutQuad
                             }
                         }
 
-                        // Task Text Area
-                        Item {
-                            id: textAreaItem
-                            Layout.fillWidth: true
+                        property bool isExpanded: false
+                        property bool isEditing: false
+                        property bool isDragging: false
+
+                        readonly property real collapsedHeight: 48
+                        readonly property real maxAllowedHeight: collapsedHeight * 4
+                        readonly property real fullContentHeight: Math.max(collapsedHeight, fullTextMeasure.contentHeight + 24)
+
+                        height: isEditing ? Math.min(Math.max(collapsedHeight, inlineEditInput.contentHeight + 24), maxAllowedHeight)
+                                          : (isExpanded ? Math.min(fullContentHeight, maxAllowedHeight) : collapsedHeight)
+
+                        Behavior on height {
+                            NumberAnimation {
+                                duration: 160
+                                easing.type: Easing.OutQuad
+                            }
+                        }
+
+                        function startEdit() {
+                            isEditing = true;
+                            isExpanded = true;
+                            inlineEditInput.text = modelData.text || "";
+                            Qt.callLater(() => inlineEditInput.forceActiveFocus());
+                        }
+
+                        function saveEdit() {
+                            const newText = inlineEditInput.text ? inlineEditInput.text.trim() : "";
+                            if (newText && root.tasksModel) {
+                                root.tasksModel.editTask(modelData.id, newText);
+                            }
+                            isEditing = false;
+                            isExpanded = false;
+                        }
+
+                        function cancelEdit() {
+                            isEditing = false;
+                            isExpanded = false;
+                        }
+
+                        function finishDrag() {
+                            if (!root.tasksModel || root.taskList.length <= 1) {
+                                taskItemRoot.y = 0;
+                                return;
+                            }
+                            const centerInContent = taskItemRoot.mapToItem(taskListView.contentItem, taskItemRoot.width / 2, taskItemRoot.height / 2);
+                            let targetIdx = taskListView.indexAt(centerInContent.x, centerInContent.y);
+                            if (targetIdx === -1) {
+                                if (centerInContent.y <= 0) {
+                                    targetIdx = 0;
+                                } else if (centerInContent.y >= taskListView.contentHeight) {
+                                    targetIdx = root.taskList.length - 1;
+                                } else {
+                                    const slotH = taskItemRoot.collapsedHeight + Theme.spacingXS;
+                                    targetIdx = Math.max(0, Math.min(Math.floor(centerInContent.y / slotH), root.taskList.length - 1));
+                                }
+                            }
+                            targetIdx = Math.max(0, Math.min(targetIdx, root.taskList.length - 1));
+                            const fromIdx = index;
+                            taskItemRoot.y = 0;
+                            if (targetIdx !== fromIdx) {
+                                root.tasksModel.moveTask(fromIdx, targetIdx);
+                            }
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.spacingS
+                            anchors.rightMargin: Theme.spacingXS
+                            spacing: Theme.spacingXS
+
+                            // Drag Handle (left-side of checkbox)
+                            Item {
+                                id: dragHandleItem
+                                Layout.preferredWidth: 20
+                                Layout.preferredHeight: 28
+                                Layout.alignment: taskItemRoot.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
+                                Layout.topMargin: taskItemRoot.isExpanded ? 10 : 0
+
+                                DankIcon {
+                                    anchors.centerIn: parent
+                                    name: "drag_indicator"
+                                    size: 18
+                                    color: taskItemRoot.isDragging
+                                           ? Theme.primary
+                                           : (dragHandleArea.containsMouse ? Theme.surfaceText : Theme.outline)
+                                    opacity: (taskItemRoot.isDragging || dragHandleArea.containsMouse) ? 1.0 : 0.45
+
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                                }
+
+                                MouseArea {
+                                    id: dragHandleArea
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    hoverEnabled: true
+                                    cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                    preventStealing: true
+                                    enabled: !taskItemRoot.isEditing
+
+                                    drag.target: taskItemRoot
+                                    drag.axis: Drag.YAxis
+
+                                    onPressed: {
+                                        taskItemRoot.isDragging = true;
+                                        taskItemRoot.z = 100;
+                                    }
+
+                                    onReleased: {
+                                        taskItemRoot.isDragging = false;
+                                        taskItemRoot.z = 1;
+                                        taskItemRoot.finishDrag();
+                                    }
+                                }
+                            }
+
+                            // Checkbox toggle (left)
+                            Item {
+                                Layout.preferredWidth: 28
+                                Layout.preferredHeight: 28
+                                Layout.alignment: taskItemRoot.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
+                                Layout.topMargin: taskItemRoot.isExpanded ? 10 : 0
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (root.tasksModel)
+                                            root.tasksModel.toggleTask(modelData.id);
+                                    }
+
+                                    DankIcon {
+                                        anchors.centerIn: parent
+                                        name: modelData.done ? "check_box" : "check_box_outline_blank"
+                                        size: 22
+                                        color: modelData.done ? Theme.primary : Theme.outlineMedium
+                                    }
+                                }
+                            }
+
+                            // Task Text Area
+                            Item {
+                                id: textAreaItem
+                                Layout.fillWidth: true
                             Layout.fillHeight: true
 
                             // Invisible text for calculating accurate expanded height
@@ -571,5 +667,6 @@ FocusScope {
             }
         }
     }
+}
 }
 }

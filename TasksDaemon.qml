@@ -134,6 +134,16 @@ PluginComponent {
             tasksModel.addTask(text.trim());
             return "TASK_ADDED";
         }
+
+        function move(fromIdx: int, toIdx: int): string {
+            tasksModel.moveTask(fromIdx, toIdx);
+            return "TASK_MOVED";
+        }
+
+        function toggleDone(taskId: string): string {
+            tasksModel.toggleTask(taskId);
+            return "TASK_TOGGLED";
+        }
     }
 
     Component.onCompleted: {

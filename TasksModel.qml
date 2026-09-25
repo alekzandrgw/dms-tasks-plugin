@@ -28,7 +28,17 @@ Item {
                 const raw = text();
                 if (raw && raw.trim()) {
                     const data = JSON.parse(raw);
-                    root.tasks = Array.isArray(data) ? data : (data.tasks || []);
+                    const list = Array.isArray(data) ? data : (data.tasks || []);
+                    const pending = [];
+                    const completed = [];
+                    for (let i = 0; i < list.length; i++) {
+                        if (list[i] && list[i].done) {
+                            completed.push(list[i]);
+                        } else if (list[i]) {
+                            pending.push(list[i]);
+                        }
+                    }
+                    root.tasks = pending.concat(completed);
                 } else {
                     root.tasks = [];
                 }
@@ -84,20 +94,68 @@ Item {
             done: false,
             createdAt: Date.now()
         };
-        const updated = tasks.concat([newTask]);
+        const updated = [];
+        let inserted = false;
+        for (let i = 0; i < tasks.length; i++) {
+            if (!inserted && tasks[i].done) {
+                updated.push(newTask);
+                inserted = true;
+            }
+            updated.push(tasks[i]);
+        }
+        if (!inserted) {
+            updated.push(newTask);
+        }
         tasks = updated;
         save();
     }
 
     function toggleTask(taskId) {
-        const updated = [];
+        let toggledItem = null;
+        const remaining = [];
         for (let i = 0; i < tasks.length; i++) {
             const item = Object.assign({}, tasks[i]);
             if (item.id === taskId) {
                 item.done = !item.done;
+                toggledItem = item;
+            } else {
+                remaining.push(item);
             }
-            updated.push(item);
         }
+        if (!toggledItem)
+            return;
+
+        const updated = [];
+        if (toggledItem.done) {
+            // Task marked completed: move to the bottom
+            for (let i = 0; i < remaining.length; i++) {
+                updated.push(remaining[i]);
+            }
+            updated.push(toggledItem);
+        } else {
+            // Task marked pending: place right above the first completed task
+            let inserted = false;
+            for (let i = 0; i < remaining.length; i++) {
+                if (!inserted && remaining[i].done) {
+                    updated.push(toggledItem);
+                    inserted = true;
+                }
+                updated.push(remaining[i]);
+            }
+            if (!inserted) {
+                updated.push(toggledItem);
+            }
+        }
+        tasks = updated;
+        save();
+    }
+
+    function moveTask(fromIndex, toIndex) {
+        if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= tasks.length || toIndex >= tasks.length)
+            return;
+        const updated = tasks.slice(0);
+        const item = updated.splice(fromIndex, 1)[0];
+        updated.splice(toIndex, 0, item);
         tasks = updated;
         save();
     }
