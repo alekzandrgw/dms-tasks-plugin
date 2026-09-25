@@ -1,0 +1,19 @@
+{
+    "id": "tasks",
+    "name": "Tasks",
+    "description": "Quick scratchpad for tasks with a sidebar slideout and keyboard shortcut",
+    "version": "1.0.0",
+    "author": "Antigravity",
+    "type": "composite",
+    "capabilities": ["daemon", "dankbar-widget"],
+    "icon": "checklist",
+    "components": {
+        "daemon": "./TasksDaemon.qml",
+        "widget": "./TasksBarWidget.qml"
+    },
+    "requires_dms": ">=1.5.0",
+    "permissions": [
+        "settings_read",
+        "settings_write"
+    ]
+}
