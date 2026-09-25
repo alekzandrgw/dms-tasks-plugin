@@ -23,7 +23,6 @@ PluginComponent {
 
     function toggleTasks() {
         toggleRequestVar.set(toggleRequestVar.value + 1);
-        Quickshell.execDetached(["dms", "ipc", "call", "tasks", "toggle"]);
     }
 
     horizontalBarPill: Component {
