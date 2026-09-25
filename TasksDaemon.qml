@@ -17,44 +17,6 @@ PluginComponent {
         pluginId: root.pluginId
     }
 
-    readonly property var _settingsDep: SettingsData.pluginSettings
-    readonly property string slideoutSide: {
-        _settingsDep;
-        return SettingsData.getPluginSetting("tasks", "slideoutSide", "right");
-    }
-    readonly property bool useCompositorGap: {
-        _settingsDep;
-        return SettingsData.getPluginSetting("tasks", "useCompositorGap", true);
-    }
-    readonly property int edgeGapSetting: {
-        _settingsDep;
-        return SettingsData.getPluginSetting("tasks", "edgeGap", 8);
-    }
-    readonly property real transparencyOverride: {
-        _settingsDep;
-        return SettingsData.getPluginSetting("tasks", "transparencyOverride", -1);
-    }
-    readonly property int effectiveEdgeGap: {
-        if (useCompositorGap) {
-            var g = -1;
-            switch (SettingsData.activeCompositor) {
-            case "niri":
-                g = SettingsData.niriLayoutGapsOverride;
-                break;
-            case "hyprland":
-                g = SettingsData.hyprlandLayoutGapsOverride;
-                break;
-            case "mango":
-                g = SettingsData.mangoLayoutGapsOverride;
-                break;
-            }
-            if (g >= 0)
-                return g;
-            return SettingsData.notepadEffectiveEdgeGap ?? 8;
-        }
-        return Math.max(0, edgeGapSetting);
-    }
-
     PluginGlobalVar {
         id: toggleRequestVar
         varName: "toggleRequest"
@@ -73,11 +35,10 @@ PluginComponent {
 
         delegate: DankSlideout {
             id: taskSlideout
-            title: ""
+            title: I18n.tr("Tasks")
             slideoutWidth: 440
-            edgeGap: root.effectiveEdgeGap
-            slideEdge: root.slideoutSide
-            customTransparency: root.transparencyOverride
+            edgeGap: 8
+            slideEdge: "right"
             layerNamespace: "dms:tasks"
 
             content: Component {

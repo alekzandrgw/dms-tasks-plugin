@@ -45,18 +45,6 @@ Item {
         }
     }
 
-    readonly property var _settingsDep: SettingsData.pluginSettings
-    readonly property bool autoSave: {
-        _settingsDep;
-        return SettingsData.getPluginSetting("tasks", "autoSave", true);
-    }
-
-    onAutoSaveChanged: {
-        if (autoSave) {
-            flush();
-        }
-    }
-
     function load() {
         storageFile.path = "";
         storageFile.path = root.storagePath;
@@ -64,12 +52,6 @@ Item {
 
     function save() {
         updateCounts();
-        if (autoSave && storageFile) {
-            storageFile.setText(JSON.stringify(tasks, null, 2));
-        }
-    }
-
-    function flush() {
         if (storageFile) {
             storageFile.setText(JSON.stringify(tasks, null, 2));
         }

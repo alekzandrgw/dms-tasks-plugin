@@ -9,59 +9,11 @@ FocusScope {
     property var slideout: null
     property var tasksModel: null
 
-    property bool showSettingsMenu: false
-    property bool showSearchBar: false
-    property string searchQuery: ""
-
-    readonly property var allTasks: (root.tasksModel && root.tasksModel.tasks) ? root.tasksModel.tasks : []
-    readonly property var filteredTasks: {
-        if (!root.showSearchBar || !root.searchQuery || !root.searchQuery.trim()) {
-            return allTasks;
-        }
-        var q = root.searchQuery.trim().toLowerCase();
-        return allTasks.filter(function(task) {
-            return task && task.text && task.text.toLowerCase().indexOf(q) !== -1;
-        });
-    }
-
     anchors.fill: parent
 
-    function showSearch() {
-        root.showSearchBar = true;
-        Qt.callLater(function() {
-            searchField.forceActiveFocus();
-        });
-    }
-
-    function hideSearch() {
-        root.showSearchBar = false;
-        root.searchQuery = "";
-        if (searchField)
-            searchField.text = "";
-        taskInput.forceActiveFocus();
-    }
-
-    Keys.onPressed: function(event) {
-        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_F) {
-            event.accepted = true;
-            root.showSearch();
-        }
-    }
-
-    Keys.onEscapePressed: function(event) {
-        if (root.showSettingsMenu) {
-            root.showSettingsMenu = false;
-            event.accepted = true;
-            return;
-        }
-        if (root.showSearchBar) {
-            root.hideSearch();
-            event.accepted = true;
-            return;
-        }
+    Keys.onEscapePressed: {
         if (slideout) {
             slideout.hide();
-            event.accepted = true;
         }
     }
 
@@ -74,17 +26,20 @@ FocusScope {
         }
     }
 
-    Item {
+    Rectangle {
         anchors.fill: parent
+        color: Theme.surfaceContainer
+        radius: Theme.cornerRadius
 
-        ColumnLayout {
+        Column {
             anchors.fill: parent
+            anchors.margins: Theme.spacingL
             spacing: Theme.spacingM
 
             // Header Row
             Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 40
+                width: parent.width
+                height: 40
 
                 Row {
                     anchors.left: parent.left
@@ -145,18 +100,6 @@ FocusScope {
                         }
                     }
 
-                    // Settings Button
-                    DankActionButton {
-                        circular: false
-                        iconName: "more_horiz"
-                        iconSize: Theme.iconSize - 4
-                        iconColor: root.showSettingsMenu ? Theme.primary : Theme.surfaceText
-                        tooltipText: I18n.tr("Tasks Settings")
-                        onClicked: {
-                            root.showSettingsMenu = !root.showSettingsMenu;
-                        }
-                    }
-
                     // Close Button
                     DankActionButton {
                         circular: false
@@ -172,46 +115,10 @@ FocusScope {
                 }
             }
 
-            // Search Bar Row (toggleable via Find in Text or Ctrl+F)
-            RowLayout {
-                id: searchBarRow
-                visible: root.showSearchBar
-                Layout.fillWidth: true
-                Layout.preferredHeight: 40
-                spacing: Theme.spacingS
-
-                DankTextField {
-                    id: searchField
-                    Layout.fillWidth: true
-                    placeholderText: I18n.tr("Find in tasks...")
-                    leftIconName: "search"
-                    showClearButton: true
-                    text: root.searchQuery
-                    onTextChanged: {
-                        root.searchQuery = text;
-                    }
-                    Keys.onEscapePressed: function(event) {
-                        root.hideSearch();
-                        event.accepted = true;
-                    }
-                }
-
-                DankActionButton {
-                    id: closeSearchBtn
-                    Layout.alignment: Qt.AlignVCenter
-                    circular: false
-                    iconName: "close"
-                    iconSize: Theme.iconSize - 4
-                    iconColor: Theme.surfaceVariantText
-                    tooltipText: I18n.tr("Close search (Esc)")
-                    onClicked: root.hideSearch()
-                }
-            }
-
             // Quick Add Input Row
             DankTextField {
                 id: taskInput
-                Layout.fillWidth: true
+                width: parent.width
                 placeholderText: I18n.tr("Add a task... (Press Enter)")
                 leftIconName: "add"
                 showClearButton: true
@@ -224,15 +131,15 @@ FocusScope {
                 }
             }
 
-            // Task List or Empty State Container
+            // Task List or Empty State
             Item {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                width: parent.width
+                height: parent.height - y - Theme.spacingS
 
-                // Empty state (all tasks completed or list empty)
+                // Empty state
                 Column {
                     anchors.centerIn: parent
-                    visible: root.allTasks.length === 0
+                    visible: (root.tasksModel?.tasks.length ?? 0) === 0
                     spacing: Theme.spacingM
 
                     DankIcon {
@@ -250,33 +157,12 @@ FocusScope {
                     }
                 }
 
-                // Empty search results state
-                Column {
-                    anchors.centerIn: parent
-                    visible: root.allTasks.length > 0 && root.filteredTasks.length === 0
-                    spacing: Theme.spacingM
-
-                    DankIcon {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        name: "search_off"
-                        size: 48
-                        color: Theme.outlineMedium
-                    }
-
-                    StyledText {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: I18n.tr("No matching tasks found")
-                        font.pixelSize: Theme.fontSizeMedium
-                        color: Theme.surfaceVariantText
-                    }
-                }
-
                 // List View
                 DankListView {
                     id: taskListView
                     anchors.fill: parent
-                    visible: root.filteredTasks.length > 0
-                    model: root.filteredTasks
+                    visible: (root.tasksModel?.tasks.length ?? 0) > 0
+                    model: root.tasksModel ? root.tasksModel.tasks : []
                     spacing: Theme.spacingXS
                     clip: true
 
@@ -318,8 +204,7 @@ FocusScope {
                             StyledText {
                                 width: parent.width - 36
                                 text: modelData.text || ""
-                                font.family: tasksSettings.useMonospace ? SettingsData.monoFontFamily : SettingsData.fontFamily
-                                font.pixelSize: tasksSettings.fontSize
+                                font.pixelSize: Theme.fontSizeMedium
                                 font.strikeout: modelData.done
                                 color: modelData.done ? Theme.surfaceVariantText : Theme.surfaceText
                                 opacity: modelData.done ? 0.6 : 1.0
@@ -347,20 +232,6 @@ FocusScope {
                     }
                 }
             }
-        }
-    }
-
-    // Settings overlay
-    TasksSettings {
-        id: tasksSettings
-        anchors.fill: parent
-        anchors.margins: -Theme.spacingL
-        z: 100
-        isVisible: root.showSettingsMenu
-        onSettingsRequested: root.showSettingsMenu = !root.showSettingsMenu
-        onFindRequested: {
-            root.showSettingsMenu = false;
-            root.showSearch();
         }
     }
 }
