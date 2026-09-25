@@ -218,12 +218,12 @@ FocusScope {
             return;
         if (selectedSection === 0) {
             const item = pendingRepeater.itemAt(selectedIndex);
-            if (item && item.taskCard) {
+            if (item && item.taskCard && item.taskCard.isLongText) {
                 item.taskCard.isExpanded = !item.taskCard.isExpanded;
             }
         } else if (selectedSection === 1) {
             const item = completedRepeater.itemAt(selectedIndex);
-            if (item && item.completedCard) {
+            if (item && item.completedCard && item.completedCard.isLongText) {
                 item.completedCard.isExpanded = !item.completedCard.isExpanded;
             }
         }
@@ -394,14 +394,31 @@ FocusScope {
         }
     }
 
+    // Background click handler to clear focus/selection when clicking blank space
+    MouseArea {
+        anchors.fill: parent
+        z: -1
+        onClicked: {
+            root.selectedIndex = -1;
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: Theme.spacingM
 
-        // Single Top Title Bar: [icon] Tasks  ... [clear] [settings] [popout] [expand] [close]
+        // Single Top Title Bar: [icon] Tasks  ... [clear] [expand] [close]
         Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
+
+            MouseArea {
+                anchors.fill: parent
+                z: 0
+                onClicked: {
+                    root.selectedIndex = -1;
+                }
+            }
 
             Row {
                 anchors.left: parent.left
@@ -553,6 +570,12 @@ FocusScope {
                                 shown: taskTextEdit.cursorVisible
                             }
 
+                            onActiveFocusChanged: {
+                                if (activeFocus) {
+                                    root.selectedIndex = -1;
+                                }
+                            }
+
                             onCursorRectangleChanged: {
                                 if (cursorRectangle.y < inputFlickable.contentY) {
                                     inputFlickable.contentY = cursorRectangle.y;
@@ -627,6 +650,16 @@ FocusScope {
                 clip: true
                 contentWidth: width
                 contentHeight: mainContentColumn.implicitHeight
+
+                // Blank space click handler
+                MouseArea {
+                    width: parent.width
+                    height: Math.max(tasksFlickable.height, mainContentColumn.implicitHeight)
+                    z: 0
+                    onClicked: {
+                        root.selectedIndex = -1;
+                    }
+                }
 
                 Column {
                     id: mainContentColumn
@@ -715,6 +748,15 @@ FocusScope {
 
                                 readonly property bool isSelected: root.selectedSection === 0 && root.selectedIndex === index && !taskTextEdit.activeFocus
 
+                                onIsSelectedChanged: {
+                                    if (!isSelected) {
+                                        taskItemRoot.isExpanded = false;
+                                        if (taskItemRoot.isEditing) {
+                                            taskItemRoot.saveEdit();
+                                        }
+                                    }
+                                }
+
                                 Item {
                                     id: displacer
                                     width: parent.width
@@ -775,17 +817,18 @@ FocusScope {
                                         property bool isEditing: false
                                         property bool isDragging: false
 
+                                        readonly property bool isLongText: fullTextMeasure.lineCount > 1
                                         readonly property real collapsedHeight: 48
                                         readonly property real maxAllowedHeight: collapsedHeight * 4
                                         readonly property real fullContentHeight: Math.max(collapsedHeight, fullTextMeasure.contentHeight + 24)
 
                                         height: isEditing ? Math.min(Math.max(collapsedHeight, inlineEditInput.contentHeight + 24), maxAllowedHeight)
-                                                          : (isExpanded ? Math.min(fullContentHeight, maxAllowedHeight) : collapsedHeight)
+                                                          : (isExpanded && isLongText ? Math.min(fullContentHeight, maxAllowedHeight) : collapsedHeight)
 
                                         Behavior on height {
                                             NumberAnimation {
-                                                duration: 160
-                                                easing.type: Easing.OutQuad
+                                                duration: 120
+                                                easing.type: Easing.OutCubic
                                             }
                                         }
 
@@ -838,8 +881,8 @@ FocusScope {
                                                 id: dragHandleItem
                                                 Layout.preferredWidth: 20
                                                 Layout.preferredHeight: 28
-                                                Layout.alignment: taskItemRoot.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
-                                                Layout.topMargin: taskItemRoot.isExpanded ? 10 : 0
+                                                Layout.alignment: (taskItemRoot.isExpanded && taskItemRoot.height > taskItemRoot.collapsedHeight) ? Qt.AlignTop : Qt.AlignVCenter
+                                                Layout.topMargin: (taskItemRoot.isExpanded && taskItemRoot.height > taskItemRoot.collapsedHeight) ? 10 : 0
 
                                                 DankIcon {
                                                     anchors.centerIn: parent
@@ -891,8 +934,8 @@ FocusScope {
                                             Item {
                                                 Layout.preferredWidth: 28
                                                 Layout.preferredHeight: 28
-                                                Layout.alignment: taskItemRoot.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
-                                                Layout.topMargin: taskItemRoot.isExpanded ? 10 : 0
+                                                Layout.alignment: (taskItemRoot.isExpanded && taskItemRoot.height > taskItemRoot.collapsedHeight) ? Qt.AlignTop : Qt.AlignVCenter
+                                                Layout.topMargin: (taskItemRoot.isExpanded && taskItemRoot.height > taskItemRoot.collapsedHeight) ? 10 : 0
 
                                                 MouseArea {
                                                     anchors.fill: parent
@@ -917,20 +960,20 @@ FocusScope {
                                                 Layout.fillWidth: true
                                                 Layout.fillHeight: true
 
-                                                // Only measure full height when card is expanded (optimizes resize performance)
+                                                // Pre-measured text height for instantaneous expansion calculation
                                                 StyledText {
                                                     id: fullTextMeasure
                                                     visible: false
-                                                    width: taskItemRoot.isExpanded ? Math.max(100, textAreaItem.width) : 100
-                                                    text: taskItemRoot.isExpanded ? (modelData.text || "") : ""
+                                                    width: Math.max(100, textAreaItem.width)
+                                                    text: modelData.text || ""
                                                     font.pixelSize: Theme.fontSizeMedium
                                                     wrapMode: Text.Wrap
                                                 }
 
-                                                // Collapsed single-line view
+                                                // Collapsed single-line view (static and vertically centered)
                                                 StyledText {
                                                     id: taskDisplayText
-                                                    visible: !taskItemRoot.isEditing && !taskItemRoot.isExpanded
+                                                    visible: !taskItemRoot.isEditing && (!taskItemRoot.isExpanded || !taskItemRoot.isLongText)
                                                     anchors.left: parent.left
                                                     anchors.right: parent.right
                                                     anchors.verticalCenter: parent.verticalCenter
@@ -945,10 +988,10 @@ FocusScope {
                                                 // Expanded view with text wrapping and scrollbar
                                                 DankFlickable {
                                                     id: textFlickable
-                                                    visible: !taskItemRoot.isEditing && taskItemRoot.isExpanded
+                                                    visible: !taskItemRoot.isEditing && taskItemRoot.isExpanded && taskItemRoot.isLongText
                                                     anchors.fill: parent
-                                                    anchors.topMargin: 12
-                                                    anchors.bottomMargin: 12
+                                                    anchors.topMargin: 14
+                                                    anchors.bottomMargin: 14
                                                     clip: true
                                                     contentWidth: width
                                                     contentHeight: expandedDisplayText.contentHeight
@@ -1046,15 +1089,17 @@ FocusScope {
                                                     onClicked: {
                                                         root.selectedSection = 0;
                                                         root.selectedIndex = index;
-                                                        taskItemRoot.isExpanded = !taskItemRoot.isExpanded;
+                                                        if (taskItemRoot.isLongText) {
+                                                            taskItemRoot.isExpanded = !taskItemRoot.isExpanded;
+                                                        }
                                                     }
                                                 }
                                             }
 
                                             // Action Buttons Row (right)
                                             Row {
-                                                Layout.alignment: taskItemRoot.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
-                                                Layout.topMargin: taskItemRoot.isExpanded ? 6 : 0
+                                                Layout.alignment: (taskItemRoot.isExpanded && taskItemRoot.height > taskItemRoot.collapsedHeight) ? Qt.AlignTop : Qt.AlignVCenter
+                                                Layout.topMargin: (taskItemRoot.isExpanded && taskItemRoot.height > taskItemRoot.collapsedHeight) ? 10 : 0
                                                 spacing: Theme.spacingXXS
 
                                                 // Edit / Save Button
@@ -1145,6 +1190,14 @@ FocusScope {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 32
 
+                    MouseArea {
+                        anchors.fill: parent
+                        z: 0
+                        onClicked: {
+                            root.selectedIndex = -1;
+                        }
+                    }
+
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: Theme.spacingXS
@@ -1209,6 +1262,16 @@ FocusScope {
                         contentWidth: width
                         contentHeight: completedColumn.implicitHeight
 
+                        // Blank space click handler
+                        MouseArea {
+                            width: parent.width
+                            height: Math.max(completedFlickable.height, completedColumn.implicitHeight)
+                            z: 0
+                            onClicked: {
+                                root.selectedIndex = -1;
+                            }
+                        }
+
                         Column {
                             id: completedColumn
                             width: completedFlickable.width - (completedScrollbar.visible ? 12 : 0)
@@ -1226,6 +1289,15 @@ FocusScope {
                                     property alias completedCard: completedCard
                                     readonly property bool isSelected: root.selectedSection === 1 && root.selectedIndex === index && !taskTextEdit.activeFocus
 
+                                    onIsSelectedChanged: {
+                                        if (!isSelected) {
+                                            completedCard.isExpanded = false;
+                                            if (completedCard.isEditing) {
+                                                completedCard.saveEdit();
+                                            }
+                                        }
+                                    }
+
                                     StyledRect {
                                         id: completedCard
                                         width: parent.width
@@ -1239,17 +1311,18 @@ FocusScope {
                                         property bool isExpanded: false
                                         property bool isEditing: false
 
+                                        readonly property bool isLongText: completedFullTextMeasure.lineCount > 1
                                         readonly property real collapsedHeight: 48
                                         readonly property real maxAllowedHeight: collapsedHeight * 4
                                         readonly property real fullContentHeight: Math.max(collapsedHeight, completedFullTextMeasure.contentHeight + 24)
 
                                         height: isEditing ? Math.min(Math.max(collapsedHeight, completedInlineEditInput.contentHeight + 24), maxAllowedHeight)
-                                                          : (isExpanded ? Math.min(fullContentHeight, maxAllowedHeight) : collapsedHeight)
+                                                          : (isExpanded && isLongText ? Math.min(fullContentHeight, maxAllowedHeight) : collapsedHeight)
 
                                         Behavior on height {
                                             NumberAnimation {
-                                                duration: 160
-                                                easing.type: Easing.OutQuad
+                                                duration: 120
+                                                easing.type: Easing.OutCubic
                                             }
                                         }
 
@@ -1284,8 +1357,8 @@ FocusScope {
                                             Item {
                                                 Layout.preferredWidth: 28
                                                 Layout.preferredHeight: 28
-                                                Layout.alignment: completedCard.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
-                                                Layout.topMargin: completedCard.isExpanded ? 10 : 0
+                                                Layout.alignment: (completedCard.isExpanded && completedCard.height > completedCard.collapsedHeight) ? Qt.AlignTop : Qt.AlignVCenter
+                                                Layout.topMargin: (completedCard.isExpanded && completedCard.height > completedCard.collapsedHeight) ? 10 : 0
 
                                                 MouseArea {
                                                     anchors.fill: parent
@@ -1310,20 +1383,20 @@ FocusScope {
                                                 Layout.fillWidth: true
                                                 Layout.fillHeight: true
 
-                                                // Only measure full height when card is expanded
+                                                // Pre-measured text height for instantaneous expansion calculation
                                                 StyledText {
                                                     id: completedFullTextMeasure
                                                     visible: false
-                                                    width: completedCard.isExpanded ? Math.max(100, completedTextAreaItem.width) : 100
-                                                    text: completedCard.isExpanded ? (modelData.text || "") : ""
+                                                    width: Math.max(100, completedTextAreaItem.width)
+                                                    text: modelData.text || ""
                                                     font.pixelSize: Theme.fontSizeMedium
                                                     wrapMode: Text.Wrap
                                                 }
 
-                                                // Collapsed single-line view
+                                                // Collapsed single-line view (static and vertically centered)
                                                 StyledText {
                                                     id: completedDisplayText
-                                                    visible: !completedCard.isEditing && !completedCard.isExpanded
+                                                    visible: !completedCard.isEditing && (!completedCard.isExpanded || !completedCard.isLongText)
                                                     anchors.left: parent.left
                                                     anchors.right: parent.right
                                                     anchors.verticalCenter: parent.verticalCenter
@@ -1340,10 +1413,10 @@ FocusScope {
                                                 // Expanded view with text wrapping and scrollbar
                                                 DankFlickable {
                                                     id: completedTextFlickable
-                                                    visible: !completedCard.isEditing && completedCard.isExpanded
+                                                    visible: !completedCard.isEditing && completedCard.isExpanded && completedCard.isLongText
                                                     anchors.fill: parent
-                                                    anchors.topMargin: 12
-                                                    anchors.bottomMargin: 12
+                                                    anchors.topMargin: 14
+                                                    anchors.bottomMargin: 14
                                                     clip: true
                                                     contentWidth: width
                                                     contentHeight: completedExpandedDisplayText.contentHeight
@@ -1443,15 +1516,17 @@ FocusScope {
                                                     onClicked: {
                                                         root.selectedSection = 1;
                                                         root.selectedIndex = index;
-                                                        completedCard.isExpanded = !completedCard.isExpanded;
+                                                        if (completedCard.isLongText) {
+                                                            completedCard.isExpanded = !completedCard.isExpanded;
+                                                        }
                                                     }
                                                 }
                                             }
 
                                             // Action Buttons Row (right)
                                             Row {
-                                                Layout.alignment: completedCard.isExpanded ? Qt.AlignTop : Qt.AlignVCenter
-                                                Layout.topMargin: completedCard.isExpanded ? 6 : 0
+                                                Layout.alignment: (completedCard.isExpanded && completedCard.height > completedCard.collapsedHeight) ? Qt.AlignTop : Qt.AlignVCenter
+                                                Layout.topMargin: (completedCard.isExpanded && completedCard.height > completedCard.collapsedHeight) ? 10 : 0
                                                 spacing: Theme.spacingXXS
 
                                                 // Edit / Save Button
@@ -1520,6 +1595,14 @@ FocusScope {
             id: bottomBar
             Layout.fillWidth: true
             Layout.preferredHeight: 32
+
+            MouseArea {
+                anchors.fill: parent
+                z: 0
+                onClicked: {
+                    root.selectedIndex = -1;
+                }
+            }
 
             Row {
                 anchors.right: parent.right
