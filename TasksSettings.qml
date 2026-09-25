@@ -491,7 +491,7 @@ Item {
                                 { key: "Mod+Alt+T", desc: I18n.tr("Toggle Tasks Panel") },
                                 { key: "Ctrl+N", desc: I18n.tr("Jump to New Task input field") },
                                 { key: "Up / Down", desc: I18n.tr("Navigate between tasks") },
-                                { key: "Tab", desc: I18n.tr("Switch pending ↔ completed section") },
+                                { key: "Ctrl+Tab", desc: I18n.tr("Switch pending ↔ completed section") },
                                 { key: "Ctrl+E", desc: I18n.tr("Edit selected task / Save when editing") },
                                 { key: "Space", desc: I18n.tr("Toggle completed / pending status") },
                                 { key: "Enter", desc: I18n.tr("Submit new task (Shift+Enter for newline)") },

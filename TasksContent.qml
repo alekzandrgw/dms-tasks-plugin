@@ -5,6 +5,7 @@ import qs.Widgets
 
 FocusScope {
     id: root
+    focus: true
 
     property var slideout: null
     property var tasksModel: null
@@ -263,6 +264,27 @@ FocusScope {
             return;
         }
 
+        // Ctrl + Tab: Switch between pending and completed section
+        if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
+            event.accepted = true;
+            taskTextEdit.focus = false;
+            root.forceActiveFocus();
+            if (root.selectedSection === 0 && root.completedTasks.length > 0) {
+                root.selectedSection = 1;
+                root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.completedTasks.length - 1));
+                root.ensureCompletedVisible(root.selectedIndex);
+            } else if (root.selectedSection === 1 && root.pendingTasks.length > 0) {
+                root.selectedSection = 0;
+                root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.pendingTasks.length - 1));
+                root.ensurePendingVisible(root.selectedIndex);
+            } else if (root.pendingTasks.length > 0) {
+                root.selectedSection = 0;
+                root.selectedIndex = 0;
+                root.ensurePendingVisible(0);
+            }
+            return;
+        }
+
         // If input box is focused:
         if (taskTextEdit.activeFocus) {
             if (event.key === Qt.Key_Down && taskTextEdit.lineCount <= 1) {
@@ -282,21 +304,6 @@ FocusScope {
                     root.ensureCompletedVisible(0);
                 }
                 return;
-            }
-            return;
-        }
-
-        // Tab: Switch between pending and completed section
-        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-            event.accepted = true;
-            if (root.selectedSection === 0 && root.completedTasks.length > 0) {
-                root.selectedSection = 1;
-                root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.completedTasks.length - 1));
-                root.ensureCompletedVisible(root.selectedIndex);
-            } else if (root.selectedSection === 1 && root.pendingTasks.length > 0) {
-                root.selectedSection = 0;
-                root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.pendingTasks.length - 1));
-                root.ensurePendingVisible(root.selectedIndex);
             }
             return;
         }
@@ -840,7 +847,14 @@ FocusScope {
                                             }
                                         }
 
+                                        onIsEditingChanged: {
+                                            if (!isEditing && root.isEditingTask) {
+                                                root.isEditingTask = false;
+                                            }
+                                        }
+
                                         function startEdit() {
+                                            root.isEditingTask = true;
                                             isEditing = true;
                                             isExpanded = true;
                                             inlineEditInput.text = modelData.text || "";
@@ -849,16 +863,24 @@ FocusScope {
 
                                         function saveEdit() {
                                             const newText = inlineEditInput.text ? inlineEditInput.text.trim() : "";
+                                            inlineEditInput.focus = false;
                                             if (newText && root.tasksModel) {
                                                 root.tasksModel.editTask(modelData.id, newText);
                                             }
                                             isEditing = false;
                                             isExpanded = false;
+                                            root.isEditingTask = false;
+                                            root.forceActiveFocus();
+                                            Qt.callLater(() => root.forceActiveFocus());
                                         }
 
                                         function cancelEdit() {
+                                            inlineEditInput.focus = false;
                                             isEditing = false;
                                             isExpanded = false;
+                                            root.isEditingTask = false;
+                                            root.forceActiveFocus();
+                                            Qt.callLater(() => root.forceActiveFocus());
                                         }
 
                                         function finishDrag() {
@@ -1362,7 +1384,14 @@ FocusScope {
                                             }
                                         }
 
+                                        onIsEditingChanged: {
+                                            if (!isEditing && root.isEditingTask) {
+                                                root.isEditingTask = false;
+                                            }
+                                        }
+
                                         function startEdit() {
+                                            root.isEditingTask = true;
                                             isEditing = true;
                                             isExpanded = true;
                                             completedInlineEditInput.text = modelData.text || "";
@@ -1371,16 +1400,24 @@ FocusScope {
 
                                         function saveEdit() {
                                             const newText = completedInlineEditInput.text ? completedInlineEditInput.text.trim() : "";
+                                            completedInlineEditInput.focus = false;
                                             if (newText && root.tasksModel) {
                                                 root.tasksModel.editTask(modelData.id, newText);
                                             }
                                             isEditing = false;
                                             isExpanded = false;
+                                            root.isEditingTask = false;
+                                            root.forceActiveFocus();
+                                            Qt.callLater(() => root.forceActiveFocus());
                                         }
 
                                         function cancelEdit() {
+                                            completedInlineEditInput.focus = false;
                                             isEditing = false;
                                             isExpanded = false;
+                                            root.isEditingTask = false;
+                                            root.forceActiveFocus();
+                                            Qt.callLater(() => root.forceActiveFocus());
                                         }
 
                                         // Background click & double click fallback
