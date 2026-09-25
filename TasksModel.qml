@@ -84,7 +84,7 @@ Item {
             done: false,
             createdAt: Date.now()
         };
-        const updated = [newTask].concat(tasks);
+        const updated = tasks.concat([newTask]);
         tasks = updated;
         save();
     }

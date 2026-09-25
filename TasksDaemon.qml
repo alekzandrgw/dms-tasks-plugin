@@ -9,7 +9,7 @@ import qs.Modules.Plugins
 PluginComponent {
     id: root
 
-    property var popoutService: null
+    property alias tasksModel: tasksModel
 
     TasksModel {
         id: tasksModel
@@ -35,7 +35,7 @@ PluginComponent {
 
         delegate: DankSlideout {
             id: taskSlideout
-            title: I18n.tr("Tasks")
+            title: ""
             slideoutWidth: 440
             edgeGap: 8
             slideEdge: "right"
@@ -44,7 +44,7 @@ PluginComponent {
             content: Component {
                 TasksContent {
                     slideout: taskSlideout
-                    tasksModel: tasksModel
+                    tasksModel: root.tasksModel
                 }
             }
         }
