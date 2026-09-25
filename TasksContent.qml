@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import qs.Common
 import qs.Widgets
 
-FocusScope {
+Item {
     id: root
     focus: true
 
@@ -472,20 +472,6 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingXS
 
-                // Clear Completed Button
-                DankActionButton {
-                    visible: Boolean(root.tasksModel && root.tasksModel.totalCompleted > 0)
-                    circular: false
-                    iconName: "remove_done"
-                    iconSize: Theme.iconSize - 4
-                    iconColor: Theme.surfaceVariantText
-                    tooltipText: I18n.tr("Clear completed tasks")
-                    onClicked: {
-                        if (root.tasksModel)
-                            root.tasksModel.clearCompleted();
-                    }
-                }
-
                 // Expand / Collapse Button (slideout only)
                 DankActionButton {
                     id: expandButton
@@ -864,12 +850,12 @@ FocusScope {
                                         function saveEdit() {
                                             const newText = inlineEditInput.text ? inlineEditInput.text.trim() : "";
                                             inlineEditInput.focus = false;
-                                            if (newText && root.tasksModel) {
-                                                root.tasksModel.editTask(modelData.id, newText);
-                                            }
                                             isEditing = false;
                                             isExpanded = false;
                                             root.isEditingTask = false;
+                                            if (newText && root.tasksModel) {
+                                                root.tasksModel.editTask(modelData.id, newText);
+                                            }
                                             root.forceActiveFocus();
                                             Qt.callLater(() => root.forceActiveFocus());
                                         }
@@ -1095,6 +1081,8 @@ FocusScope {
                                                             } else {
                                                                 event.accepted = true;
                                                                 taskItemRoot.saveEdit();
+                                                                root.forceActiveFocus();
+                                                                Qt.callLater(() => root.forceActiveFocus());
                                                             }
                                                         }
                                                         Keys.onEnterPressed: function(event) {
@@ -1103,6 +1091,8 @@ FocusScope {
                                                             } else {
                                                                 event.accepted = true;
                                                                 taskItemRoot.saveEdit();
+                                                                root.forceActiveFocus();
+                                                                Qt.callLater(() => root.forceActiveFocus());
                                                             }
                                                         }
                                                         Keys.onEscapePressed: function(event) {
@@ -1278,18 +1268,6 @@ FocusScope {
                             color: Theme.outlineMedium
                             opacity: 0.25
                         }
-
-                        DankActionButton {
-                            circular: false
-                            iconName: "delete_sweep"
-                            iconSize: Theme.iconSizeSmall - 2
-                            iconColor: Theme.surfaceVariantText
-                            tooltipText: I18n.tr("Clear completed")
-                            onClicked: {
-                                if (root.tasksModel)
-                                    root.tasksModel.clearCompleted();
-                            }
-                        }
                     }
                 }
 
@@ -1401,12 +1379,12 @@ FocusScope {
                                         function saveEdit() {
                                             const newText = completedInlineEditInput.text ? completedInlineEditInput.text.trim() : "";
                                             completedInlineEditInput.focus = false;
-                                            if (newText && root.tasksModel) {
-                                                root.tasksModel.editTask(modelData.id, newText);
-                                            }
                                             isEditing = false;
                                             isExpanded = false;
                                             root.isEditingTask = false;
+                                            if (newText && root.tasksModel) {
+                                                root.tasksModel.editTask(modelData.id, newText);
+                                            }
                                             root.forceActiveFocus();
                                             Qt.callLater(() => root.forceActiveFocus());
                                         }
@@ -1571,6 +1549,8 @@ FocusScope {
                                                             } else {
                                                                 event.accepted = true;
                                                                 completedCard.saveEdit();
+                                                                root.forceActiveFocus();
+                                                                Qt.callLater(() => root.forceActiveFocus());
                                                             }
                                                         }
                                                         Keys.onEnterPressed: function(event) {
@@ -1579,6 +1559,8 @@ FocusScope {
                                                             } else {
                                                                 event.accepted = true;
                                                                 completedCard.saveEdit();
+                                                                root.forceActiveFocus();
+                                                                Qt.callLater(() => root.forceActiveFocus());
                                                             }
                                                         }
                                                         Keys.onEscapePressed: function(event) {
@@ -1702,6 +1684,20 @@ FocusScope {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingXS
+
+                // Clear Completed Button
+                DankActionButton {
+                    visible: Boolean(root.tasksModel && root.tasksModel.totalCompleted > 0)
+                    circular: false
+                    iconName: "delete_sweep"
+                    iconSize: Theme.iconSize - 4
+                    iconColor: Theme.surfaceText
+                    tooltipText: I18n.tr("Clear completed tasks")
+                    onClicked: {
+                        if (root.tasksModel)
+                            root.tasksModel.clearCompleted();
+                    }
+                }
 
                 // Settings Button
                 DankActionButton {
