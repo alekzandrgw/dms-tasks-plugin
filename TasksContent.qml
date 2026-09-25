@@ -231,15 +231,6 @@ Item {
     }
 
     Keys.onPressed: function(event) {
-        // Ctrl + N: Jump to new task input
-        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_N) {
-            event.accepted = true;
-            root.selectedIndex = -1;
-            root.isEditingTask = false;
-            taskTextEdit.forceActiveFocus();
-            return;
-        }
-
         // When settings menu is open, Esc closes it
         if (root.showSettingsMenu) {
             if (event.key === Qt.Key_Escape) {
@@ -249,131 +240,13 @@ Item {
             return;
         }
 
-        // If currently editing inline in a task
+        // If currently editing inline in a task, Esc cancels edit
         if (root.isEditingTask) {
-            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-                event.accepted = true;
-                root.saveCurrentEdit();
-                return;
-            }
             if (event.key === Qt.Key_Escape) {
                 event.accepted = true;
                 root.cancelCurrentEdit();
                 return;
             }
-            return;
-        }
-
-        // Ctrl + Tab: Switch between pending and completed section
-        if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
-            event.accepted = true;
-            taskTextEdit.focus = false;
-            root.forceActiveFocus();
-            if (root.selectedSection === 0 && root.completedTasks.length > 0) {
-                root.selectedSection = 1;
-                root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.completedTasks.length - 1));
-                root.ensureCompletedVisible(root.selectedIndex);
-            } else if (root.selectedSection === 1 && root.pendingTasks.length > 0) {
-                root.selectedSection = 0;
-                root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.pendingTasks.length - 1));
-                root.ensurePendingVisible(root.selectedIndex);
-            } else if (root.pendingTasks.length > 0) {
-                root.selectedSection = 0;
-                root.selectedIndex = 0;
-                root.ensurePendingVisible(0);
-            }
-            return;
-        }
-
-        // If input box is focused:
-        if (taskTextEdit.activeFocus) {
-            if (event.key === Qt.Key_Down && taskTextEdit.lineCount <= 1) {
-                if (root.pendingTasks.length > 0) {
-                    event.accepted = true;
-                    taskTextEdit.focus = false;
-                    root.forceActiveFocus();
-                    root.selectedSection = 0;
-                    root.selectedIndex = 0;
-                    root.ensurePendingVisible(0);
-                } else if (root.completedTasks.length > 0) {
-                    event.accepted = true;
-                    taskTextEdit.focus = false;
-                    root.forceActiveFocus();
-                    root.selectedSection = 1;
-                    root.selectedIndex = 0;
-                    root.ensureCompletedVisible(0);
-                }
-                return;
-            }
-            return;
-        }
-
-        // Down arrow: Navigate forward
-        if (event.key === Qt.Key_Down) {
-            event.accepted = true;
-            if (root.selectedSection === 0) {
-                if (root.selectedIndex < root.pendingTasks.length - 1) {
-                    root.selectedIndex++;
-                    root.ensurePendingVisible(root.selectedIndex);
-                } else if (root.completedTasks.length > 0) {
-                    root.selectedSection = 1;
-                    root.selectedIndex = 0;
-                    root.ensureCompletedVisible(0);
-                }
-            } else if (root.selectedSection === 1) {
-                if (root.selectedIndex < root.completedTasks.length - 1) {
-                    root.selectedIndex++;
-                    root.ensureCompletedVisible(root.selectedIndex);
-                }
-            }
-            return;
-        }
-
-        // Up arrow: Navigate backward
-        if (event.key === Qt.Key_Up) {
-            event.accepted = true;
-            if (root.selectedSection === 1) {
-                if (root.selectedIndex > 0) {
-                    root.selectedIndex--;
-                    root.ensureCompletedVisible(root.selectedIndex);
-                } else if (root.pendingTasks.length > 0) {
-                    root.selectedSection = 0;
-                    root.selectedIndex = root.pendingTasks.length - 1;
-                    root.ensurePendingVisible(root.selectedIndex);
-                } else {
-                    root.selectedIndex = -1;
-                    taskTextEdit.forceActiveFocus();
-                }
-            } else if (root.selectedSection === 0) {
-                if (root.selectedIndex > 0) {
-                    root.selectedIndex--;
-                    root.ensurePendingVisible(root.selectedIndex);
-                } else {
-                    root.selectedIndex = -1;
-                    taskTextEdit.forceActiveFocus();
-                }
-            }
-            return;
-        }
-
-        // Ctrl + E: Edit selected task
-        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_E) {
-            event.accepted = true;
-            root.startCurrentEdit();
-            return;
-        }
-
-        // Space: Toggle task completion
-        if (event.key === Qt.Key_Space) {
-            event.accepted = true;
-            root.toggleCurrentTask();
-            return;
-        }
-
-        // Enter: Toggle expand / collapse
-        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            event.accepted = true;
-            root.toggleCurrentExpand();
             return;
         }
 
@@ -390,6 +263,8 @@ Item {
             }
             return;
         }
+
+        // Panel keyboard shortcuts (Ctrl+N, Ctrl+Tab, Arrows, Ctrl+E, Space, Enter) are disabled for now
     }
 
     Connections {
@@ -1673,26 +1548,32 @@ Item {
             Layout.preferredHeight: 32
 
             MouseArea {
-                anchors.fill: parent
-                z: 0
+                anchors.left: parent.left
+                anchors.right: bottomButtonsRow.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
                 onClicked: {
                     root.selectedIndex = -1;
                 }
             }
 
             Row {
+                id: bottomButtonsRow
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingXS
 
                 // Clear Completed Button
                 DankActionButton {
-                    visible: Boolean(root.tasksModel && root.tasksModel.totalCompleted > 0)
+                    visible: true
                     circular: false
                     iconName: "delete_sweep"
                     iconSize: Theme.iconSize - 4
-                    iconColor: Theme.surfaceText
-                    tooltipText: I18n.tr("Clear completed tasks")
+                    iconColor: enabled ? Theme.surfaceText : Theme.surfaceVariantText
+                    opacity: enabled ? 1.0 : 0.38
+                    enabled: Boolean(root.tasksModel && root.completedTasks.length > 0)
+                    tooltipText: enabled ? I18n.tr("Clear completed tasks") : null
+                    tooltipSide: "top"
                     onClicked: {
                         if (root.tasksModel)
                             root.tasksModel.clearCompleted();
@@ -1706,6 +1587,7 @@ Item {
                     iconSize: Theme.iconSize - 4
                     iconColor: root.showSettingsMenu ? Theme.primary : Theme.surfaceText
                     tooltipText: I18n.tr("Tasks Settings")
+                    tooltipSide: "top"
                     onClicked: root.showSettingsMenu = !root.showSettingsMenu
                 }
 
@@ -1716,6 +1598,7 @@ Item {
                     iconSize: Theme.iconSize - 4
                     iconColor: Theme.surfaceText
                     tooltipText: root.inPopout ? I18n.tr("Dock to slideout") : I18n.tr("Popout window")
+                    tooltipSide: "top"
                     onClicked: {
                         if (root.inPopout) {
                             root.dockRequested();
