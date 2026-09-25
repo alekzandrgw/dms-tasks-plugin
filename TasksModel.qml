@@ -11,10 +11,16 @@ Item {
     property var pluginService: null
     property string pluginId: "tasks"
     property var tasks: []
+    property var pendingTasks: []
+    property var completedTasks: []
     property int totalPending: 0
     property int totalCompleted: 0
     readonly property string baseDir: Paths.strip(StandardPaths.writableLocation(StandardPaths.GenericStateLocation) + "/DankMaterialShell")
     readonly property string storagePath: baseDir + "/tasks.json"
+
+    onTasksChanged: {
+        updateCounts();
+    }
 
     FileView {
         id: storageFile
@@ -68,20 +74,22 @@ Item {
     }
 
     function updateCounts() {
-        let pending = 0;
-        let completed = 0;
+        const pending = [];
+        const completed = [];
         for (let i = 0; i < tasks.length; i++) {
             if (tasks[i] && tasks[i].done) {
-                completed++;
-            } else {
-                pending++;
+                completed.push(tasks[i]);
+            } else if (tasks[i]) {
+                pending.push(tasks[i]);
             }
         }
-        totalPending = pending;
-        totalCompleted = completed;
+        pendingTasks = pending;
+        completedTasks = completed;
+        totalPending = pending.length;
+        totalCompleted = completed.length;
 
         if (typeof PluginService !== "undefined" && PluginService.setGlobalVar) {
-            PluginService.setGlobalVar(pluginId, "pendingCount", pending);
+            PluginService.setGlobalVar(pluginId, "pendingCount", pending.length);
         }
     }
 
@@ -158,6 +166,12 @@ Item {
         updated.splice(toIndex, 0, item);
         tasks = updated;
         save();
+    }
+
+    function movePendingTask(fromIndex, toIndex) {
+        if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= pendingTasks.length || toIndex >= pendingTasks.length)
+            return;
+        moveTask(fromIndex, toIndex);
     }
 
     function editTask(taskId, newText) {
