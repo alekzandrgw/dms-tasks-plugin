@@ -1565,6 +1565,7 @@ Item {
 
                 // Clear Completed Button
                 DankActionButton {
+                    id: clearCompletedBtn
                     visible: true
                     circular: false
                     iconName: "delete_sweep"
@@ -1574,7 +1575,29 @@ Item {
                     enabled: Boolean(root.tasksModel && root.completedTasks.length > 0)
                     tooltipText: enabled ? I18n.tr("Clear completed tasks") : null
                     tooltipSide: "top"
+
+                    function dismissTooltip() {
+                        for (let i = 0; i < children.length; i++) {
+                            let child = children[i];
+                            if (child && child.children) {
+                                for (let j = 0; j < child.children.length; j++) {
+                                    let sub = child.children[j];
+                                    if (sub && typeof sub.hide === "function") {
+                                        sub.hide();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    onEnabledChanged: {
+                        if (!enabled) {
+                            dismissTooltip();
+                        }
+                    }
+
                     onClicked: {
+                        dismissTooltip();
                         if (root.tasksModel)
                             root.tasksModel.clearCompleted();
                     }

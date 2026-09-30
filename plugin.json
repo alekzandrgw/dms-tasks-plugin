@@ -1,9 +1,9 @@
 {
     "id": "tasks",
     "name": "Tasks",
-    "description": "Quick scratchpad for tasks with a sidebar slideout and keyboard shortcut",
+    "description": "Quick local tasks plugin with a sidebar slideout",
     "version": "1.0.0",
-    "author": "Antigravity",
+    "author": "AlekzandrGW",
     "type": "composite",
     "capabilities": ["daemon", "dankbar-widget"],
     "icon": "checklist",
